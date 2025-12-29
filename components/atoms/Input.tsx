@@ -19,6 +19,7 @@ interface InputProps extends Omit<TextInputProps, 'style'> {
   keyboardType?: KeyboardTypeOptions;
   returnKeyType?: ReturnKeyTypeOptions;
   onSubmitEditing?: () => void;
+  style?: object;
 }
 
 export default function Input({
@@ -29,12 +30,13 @@ export default function Input({
   keyboardType = 'default',
   returnKeyType = 'done',
   onSubmitEditing,
+  style,
   ...rest
 }: InputProps) {
   return (
     <View style={styles.container}>
       <TextInput
-        style={styles.input}
+        style={[styles.input, style]}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}

@@ -2,13 +2,15 @@ import HomeHeader from '@/components/molecules/HomeHeader';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 import { Typography } from '@/constants/Typography';
+import { useRouter } from 'expo-router';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function HomeScreen() {
+  const router = useRouter();
+
   const handleContactsPress = () => {
-    // TODO: Navigate to Service Contacts screen
-    console.log('Navigate to Service Contacts');
+    router.push('/contacts' as any);
   };
 
   const handleSettingsPress = () => {
@@ -17,7 +19,7 @@ export default function HomeScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* Header */}
       <HomeHeader
         onContactsPress={handleContactsPress}
@@ -37,7 +39,7 @@ export default function HomeScreen() {
           </Text>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 

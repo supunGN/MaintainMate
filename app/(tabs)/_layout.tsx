@@ -1,24 +1,36 @@
+import { HapticTab } from '@/components/haptic-tab';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { BarChart3, Bell, Home, List, Plus } from 'lucide-react-native';
 import React from 'react';
 
 export default function TabLayout() {
+  const router = useRouter();
+
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors.primary.main,
         tabBarInactiveTintColor: '#999999',
         headerShown: false,
+        tabBarButton: HapticTab,
         tabBarStyle: {
-          paddingTop: Spacing.md,
+          minHeight: 80,
+          paddingTop: Spacing.sm,
+          paddingBottom: Spacing.md,
           paddingHorizontal: Spacing.screenHorizontal,
-          paddingVertical: Spacing.xl,
-          //paddingBottom: 0,
           backgroundColor: '#FFFFFF',
           borderTopColor: '#E5E5E5',
           borderTopWidth: 1,
+        },
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: '600',
+          marginTop: 2,
+        },
+        tabBarIconStyle: {
+          marginBottom: 2,
         },
       }}>
       <Tabs.Screen
@@ -40,6 +52,12 @@ export default function TabLayout() {
         options={{
           title: 'Add',
           tabBarIcon: ({ color }) => <Plus size={24} color={color} />,
+        }}
+        listeners={{
+          tabPress: (e) => {
+            e.preventDefault();
+            router.push('/add-service' as any);
+          },
         }}
       />
       <Tabs.Screen
