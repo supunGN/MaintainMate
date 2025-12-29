@@ -1,0 +1,63 @@
+/**
+ * Color constants for MaintainMate-v2
+ * Organized by usage and theme
+ */
+
+export const Colors = {
+  // Splash Screen Colors
+  splash: {
+    gradientStart: '#2D8B57', // Green
+    gradientEnd: '#000000',   // Black
+    iconColor: '#FFFFFF',     // White
+  },
+
+  // Primary Brand Colors
+  primary: {
+    main: '#2D8B57',
+    light: '#3FA76F',
+    dark: '#1F5F3D',
+  },
+
+  // Neutral Colors
+  neutral: {
+    white: '#FFFFFF',
+    black: '#000000',
+    gray100: '#F5F5F5',
+    gray200: '#EEEEEE',
+    gray300: '#E0E0E0',
+    gray400: '#BDBDBD',
+    gray500: '#9E9E9E',
+    gray600: '#757575',
+    gray700: '#616161',
+    gray800: '#424242',
+    gray900: '#212121',
+  },
+
+  // Semantic Colors
+  success: '#4CAF50',
+  warning: '#FF9800',
+  error: '#F44336',
+  info: '#2196F3',
+
+  // Text Colors
+  text: {
+    primary: '#212121',
+    secondary: '#757575',
+    disabled: '#BDBDBD',
+    inverse: '#FFFFFF',
+  },
+
+  // Background Colors
+  background: {
+    default: '#FFFFFF',
+    paper: '#F5F5F5',
+    dark: '#212121',
+  },
+
+  // Onboarding Colors
+  onboarding: {
+    activeDot: '#2D8B57',
+    inactiveDot: '#E0E0E0',
+    skipText: '#757575',
+  },
+} as const;

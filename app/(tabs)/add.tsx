@@ -1,28 +1,17 @@
-import HomeHeader from '@/components/molecules/HomeHeader';
+import PageHeading from '@/components/atoms/PageHeading';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 import { Typography } from '@/constants/Typography';
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-export default function HomeScreen() {
-  const handleContactsPress = () => {
-    // TODO: Navigate to Service Contacts screen
-    console.log('Navigate to Service Contacts');
-  };
-
-  const handleSettingsPress = () => {
-    // TODO: Navigate to Settings screen
-    console.log('Navigate to Settings');
-  };
-
+export default function AddScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <HomeHeader
-        onContactsPress={handleContactsPress}
-        onSettingsPress={handleSettingsPress}
-      />
+      <View style={styles.header}>
+        <PageHeading title="Add Service Record" />
+      </View>
 
       {/* Content */}
       <ScrollView
@@ -31,9 +20,9 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.placeholder}>
-          <Text style={styles.placeholderText}>Home Screen Content</Text>
+          <Text style={styles.placeholderText}>Add Service</Text>
           <Text style={styles.placeholderSubtext}>
-            Main content will go here
+            Form to add new maintenance record will go here
           </Text>
         </View>
       </ScrollView>
@@ -45,6 +34,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background.default,
+  },
+  header: {
+    paddingHorizontal: Spacing.screenHorizontal,
+    paddingTop: Spacing.xl,
+    marginTop: Spacing.xxl,
+    paddingBottom: Spacing.sm,
   },
   content: {
     flex: 1,
@@ -69,5 +64,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.text.secondary,
+    textAlign: 'center',
   },
 });
