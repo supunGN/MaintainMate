@@ -1,17 +1,17 @@
-import { Colors } from '@/constants/Colors';
-import { Spacing } from '@/constants/Spacing';
-import { Typography } from '@/constants/Typography';
-import { X } from 'lucide-react-native';
-import React, { useState } from 'react';
+import { Colors } from "@/constants/Colors";
+import { Spacing } from "@/constants/Spacing";
+import { Typography } from "@/constants/Typography";
+import { X } from "lucide-react-native";
+import React, { useState } from "react";
 import {
-    Image,
-    ImageSourcePropType,
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-} from 'react-native';
+  Image,
+  ImageSourcePropType,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 interface Category {
   id: string;
@@ -21,34 +21,34 @@ interface Category {
 
 const CATEGORIES: Category[] = [
   {
-    id: 'home_appliances',
-    label: 'Home Appliances',
-    image: require('@/assets/images/categories/cat_appliances.png'),
+    id: "home_appliances",
+    label: "Home Appliances",
+    image: require("@/assets/images/categories/cat_appliances.png"),
   },
   {
-    id: 'vehicles',
-    label: 'Vehicles',
-    image: require('@/assets/images/categories/cat_vehicles.png'),
+    id: "vehicles",
+    label: "Vehicles",
+    image: require("@/assets/images/categories/cat_vehicles.png"),
   },
   {
-    id: 'entertainment',
-    label: 'Entertainment',
-    image: require('@/assets/images/categories/cat_entertainment.png'),
+    id: "entertainment",
+    label: "Entertainment",
+    image: require("@/assets/images/categories/cat_entertainment.png"),
   },
   {
-    id: 'computing',
-    label: 'Computing',
-    image: require('@/assets/images/categories/cat_computing.png'),
+    id: "computing",
+    label: "Computing",
+    image: require("@/assets/images/categories/cat_computing.png"),
   },
   {
-    id: 'security',
-    label: 'Security & Smart',
-    image: require('@/assets/images/categories/cat_security.png'),
+    id: "security",
+    label: "Security & Smart",
+    image: require("@/assets/images/categories/cat_security.png"),
   },
   {
-    id: 'other',
-    label: 'Other',
-    image: require('@/assets/images/categories/cat_other.png'),
+    id: "other",
+    label: "Other",
+    image: require("@/assets/images/categories/cat_other.png"),
   },
 ];
 
@@ -65,12 +65,13 @@ export default function CategoryFilterModal({
   onApply,
   initialSelected = [],
 }: CategoryFilterModalProps) {
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(initialSelected);
+  const [selectedCategories, setSelectedCategories] =
+    useState<string[]>(initialSelected);
 
   const handleCategoryToggle = (categoryId: string) => {
     // Single selection: if already selected, deselect; otherwise select only this one
     setSelectedCategories((prev) =>
-      prev.includes(categoryId) ? [] : [categoryId]
+      prev.includes(categoryId) ? [] : [categoryId],
     );
   };
 
@@ -125,7 +126,10 @@ export default function CategoryFilterModal({
                 return (
                   <View key={category.id} style={styles.categoryItem}>
                     <TouchableOpacity
-                      style={[styles.categoryItemInner, isSelected && styles.categoryItemSelected]}
+                      style={[
+                        styles.categoryItemInner,
+                        isSelected && styles.categoryItemSelected,
+                      ]}
                       onPress={() => handleCategoryToggle(category.id)}
                       activeOpacity={0.7}
                     >
@@ -134,7 +138,12 @@ export default function CategoryFilterModal({
                         style={styles.categoryIcon}
                         resizeMode="contain"
                       />
-                      <Text style={[styles.categoryLabel, isSelected && styles.categoryLabelSelected]}>
+                      <Text
+                        style={[
+                          styles.categoryLabel,
+                          isSelected && styles.categoryLabelSelected,
+                        ]}
+                      >
                         {category.label}
                       </Text>
                     </TouchableOpacity>
@@ -170,30 +179,30 @@ export default function CategoryFilterModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   modalContainer: {
     backgroundColor: Colors.background.default,
     borderTopLeftRadius: Spacing.borderRadius.xl,
     borderTopRightRadius: Spacing.borderRadius.xl,
     paddingBottom: Spacing.xl,
-    maxHeight: '70%',
+    maxHeight: "70%",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.screenHorizontal,
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral.gray200,
   },
   title: {
+    flex: 1,
+    textAlign: "center",
     fontSize: Typography.fontSize.h3,
     fontFamily: Typography.fontFamily.bold,
     fontWeight: Typography.fontWeight.bold,
@@ -208,18 +217,18 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.md,
   },
   grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     marginHorizontal: -Spacing.xs, // Negative margin to offset item margins
   },
   categoryItem: {
-    width: '50%',
+    width: "50%",
     paddingHorizontal: Spacing.xs,
     marginBottom: Spacing.md,
   },
   categoryItemInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: Colors.neutral.white,
     borderWidth: 1,
     borderColor: Colors.neutral.gray300,
@@ -227,7 +236,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
   },
   categoryItemSelected: {
-    backgroundColor: Colors.primary.main + '10',
+    backgroundColor: Colors.primary.main + "10",
     borderColor: Colors.primary.main,
   },
   categoryIcon: {
@@ -246,7 +255,7 @@ const styles = StyleSheet.create({
     color: Colors.primary.main,
   },
   footer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: Spacing.screenHorizontal,
     paddingTop: Spacing.lg,
     gap: Spacing.md,
@@ -258,8 +267,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutral.white,
     borderWidth: 1,
     borderColor: Colors.neutral.gray300,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   clearButtonText: {
     fontSize: Typography.fontSize.body,
@@ -272,8 +281,8 @@ const styles = StyleSheet.create({
     height: Spacing.buttonHeight,
     borderRadius: Spacing.borderRadius.lg,
     backgroundColor: Colors.primary.main,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   applyButtonText: {
     fontSize: Typography.fontSize.body,

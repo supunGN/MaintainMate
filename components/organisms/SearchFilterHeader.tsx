@@ -5,9 +5,9 @@ import { Spacing } from '@/constants/Spacing';
 import { ListFilter } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
-    StyleSheet,
-    TouchableOpacity,
-    View,
+  StyleSheet,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 interface SearchFilterHeaderProps {
