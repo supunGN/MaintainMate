@@ -4,7 +4,14 @@ import { Spacing } from '@/constants/Spacing';
 import { Typography } from '@/constants/Typography';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -16,6 +23,10 @@ export default function HomeScreen() {
   const handleSettingsPress = () => {
     // TODO: Navigate to Settings screen
     console.log('Navigate to Settings');
+  };
+
+  const handleMaintenanceTipsPress = () => {
+    router.push('/(tabs)/maintenance-tips' as any);
   };
 
   return (
@@ -32,6 +43,13 @@ export default function HomeScreen() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
+        <TouchableOpacity
+          style={styles.button}
+          onPress={handleMaintenanceTipsPress}
+        >
+          <Text style={styles.buttonText}>❔ Go to Maintenance Tips</Text>
+        </TouchableOpacity>
+
         <View style={styles.placeholder}>
           <Text style={styles.placeholderText}>Home Screen Content</Text>
           <Text style={styles.placeholderSubtext}>
@@ -53,6 +71,19 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: Spacing.screenHorizontal,
+  },
+  button: {
+    backgroundColor: Colors.primary.main,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 8,
+    marginVertical: Spacing.md,
+    alignItems: 'center',
+  },
+  buttonText: {
+    fontSize: Typography.fontSize.body,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   placeholder: {
     flex: 1,

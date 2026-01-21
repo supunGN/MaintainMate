@@ -44,6 +44,28 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "scheme": "maintainmatev2",
+    "deepLinking": {
+      "enabled": true,
+      "prefixes": ["maintainmatev2://", "https://maintainmate.app/"],
+      "config": {
+        "screens": {
+          "(tabs)": {
+            "screens": {
+              "index": "home",
+              "upcoming": "upcoming",
+              "add": "add",
+              "history": "history",
+              "reports": "reports",
+              "maintenance-tips": "maintenance-tips"
+            }
+          },
+          "add-service": "add-service",
+          "onboarding": "onboarding",
+          "contacts": "contacts"
+        }
+      }
     }
   }
 }
