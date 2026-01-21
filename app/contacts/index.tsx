@@ -1,235 +1,207 @@
-import ContactCard, { Contact } from '@/components/molecules/ContactCard';
-import { FilterOption } from '@/components/molecules/FilterBar';
-import AddContactModal from '@/components/organisms/AddContactModal';
-import CategoryFilterModal from '@/components/organisms/CategoryFilterModal';
-import SearchFilterHeader from '@/components/organisms/SearchFilterHeader';
-import { Colors } from '@/constants/Colors';
-import { Spacing } from '@/constants/Spacing';
-import { Typography } from '@/constants/Typography';
-import { useRouter } from 'expo-router';
-import { ArrowLeft, Plus } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import { Colors } from "@/constants/Colors";
+import { Spacing } from "@/constants/Spacing";
+import { Typography } from "@/constants/Typography";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect, useRouter } from "expo-router";
+import { Edit2, Phone, Plus, Trash2 } from "lucide-react-native";
+import React, { useCallback, useState } from "react";
 import {
     Alert,
     SafeAreaView,
     SectionList,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
-} from 'react-native';
+} from "react-native";
 
-// Sample data - replace with actual data later
-const SAMPLE_CONTACTS: Contact[] = [
-  {
-    id: '1',
-    name: 'James Automobile',
-    specialty: 'General Service Center',
-    phone: '+94 77 400 50 21',
-    category: 'Vehicles',
-  },
-  {
-    id: '2',
-    name: 'James Automobile',
-    specialty: 'General Service Center',
-    phone: '+94 77 400 50 21',
-    category: 'Vehicles',
-  },
-  {
-    id: '3',
-    name: 'Kumar abc',
-    specialty: 'Engine Specialist',
-    phone: '+94 77 400 50 21',
-    category: 'Vehicles',
-  },
-];
-
-// Category labels for display
-const CATEGORY_LABELS: Record<string, string> = {
-  home_appliances: 'Home Appliances',
-  vehicles: 'Vehicles',
-  entertainment: 'Entertainment',
-  computing: 'Computing',
-  security: 'Security & Smart',
-  other: 'Other',
-};
-
-interface ContactSection {
-  title: string;
-  data: Contact[];
+export interface Contact {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  address?: string;
 }
 
+// Alphabetical grouping helper
+const groupContactsByLetter = (contacts: Contact[]) => {
+  const sorted = [...contacts].sort((a, b) => a.name.localeCompare(b.name));
+  const grouped: Record<string, Contact[]> = {};
+
+  sorted.forEach((contact) => {
+    const letter = contact.name[0]?.toUpperCase() || "#";
+    if (!grouped[letter]) {
+      grouped[letter] = [];
+    }
+    grouped[letter].push(contact);
+  });
+
+  return Object.keys(grouped)
+    .sort()
+    .map((letter) => ({
+      title: letter,
+      data: grouped[letter],
+    }));
+};
 export default function ContactsScreen() {
   const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>(SAMPLE_CONTACTS);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Update filter labels based on selection
-  const filters: FilterOption[] = [
-    {
-      id: 'category',
-      label: selectedCategories.length > 0
-        ? CATEGORY_LABELS[selectedCategories[0]]
-        : 'Category',
-      isActive: selectedCategories.length > 0,
-    },
-    { id: 'specialty', label: 'Specialty', isActive: false },
-  ];
+  // Load contacts from storage
+  const loadContacts = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const stored = await AsyncStorage.getItem("contacts");
+      const loaded = stored ? JSON.parse(stored) : [];
+      setContacts(loaded);
+      updateFilteredContacts(loaded, "");
+    } catch (error) {
+      console.error("Error loading contacts:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-  // Filter and sort contacts
-  const filteredContacts = useMemo(() => {
-    let result = contacts;
-
-    // Apply search filter
-    if (searchQuery) {
-      result = result.filter(
-        (contact) =>
-          contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          contact.specialty.toLowerCase().includes(searchQuery.toLowerCase())
+  // Update filtered and grouped contacts
+  const updateFilteredContacts = (list: Contact[], search: string) => {
+    let filtered = list;
+    if (search.trim()) {
+      filtered = list.filter(
+        (c) =>
+          c.name.toLowerCase().includes(search.toLowerCase()) ||
+          c.phone.includes(search),
       );
     }
-
-    // Sort alphabetically
-    return result.sort((a, b) => a.name.localeCompare(b.name));
-  }, [searchQuery, contacts]);
-
-  // Group contacts by first letter
-  const sectionedContacts = useMemo(() => {
-    const sections: ContactSection[] = [];
-    const grouped = filteredContacts.reduce((acc, contact) => {
-      const firstLetter = contact.name[0].toUpperCase();
-      if (!acc[firstLetter]) {
-        acc[firstLetter] = [];
-      }
-      acc[firstLetter].push(contact);
-      return acc;
-    }, {} as Record<string, Contact[]>);
-
-    Object.keys(grouped)
-      .sort()
-      .forEach((letter) => {
-        sections.push({
-          title: letter,
-          data: grouped[letter],
-        });
-      });
-
-    return sections;
-  }, [filteredContacts]);
-
-  const handleFilterPress = (filterId: string) => {
-    if (filterId === 'category') {
-      setShowCategoryModal(true);
-    } else {
-      // TODO: Implement other filter logic
-      console.log('Filter pressed:', filterId);
-    }
+    setFilteredContacts(filtered.sort((a, b) => a.name.localeCompare(b.name)));
   };
 
-  const handleApplyCategories = (categories: string[]) => {
-    setSelectedCategories(categories);
+  // Load contacts on screen focus
+  useFocusEffect(
+    useCallback(() => {
+      loadContacts();
+    }, [loadContacts]),
+  );
+
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    updateFilteredContacts(contacts, query);
   };
 
-  const handleRemoveFilter = (filterId: string) => {
-    if (filterId === 'category') {
-      setSelectedCategories([]);
-    }
+  const handleDelete = (id: string) => {
+    Alert.alert("Delete Contact", "Are you sure?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          const updated = contacts.filter((c) => c.id !== id);
+          setContacts(updated);
+          updateFilteredContacts(updated, searchQuery);
+          await AsyncStorage.setItem("contacts", JSON.stringify(updated));
+        },
+      },
+    ]);
   };
 
-  const handleAddContact = () => {
-    setShowAddModal(true);
+  const handleEdit = (contact: Contact) => {
+    router.push({
+      pathname: "/contacts/addContact",
+      params: { contact: JSON.stringify(contact) },
+    });
   };
 
-  const handleSaveContact = (newContact: { name: string; place: string; phone: string }) => {
-    const contact: Contact = {
-      id: Date.now().toString(),
-      name: newContact.name,
-      specialty: newContact.place,
-      phone: newContact.phone,
-    };
-    setContacts((prev) => [...prev, contact]);
-    Alert.alert('Success', 'Contact added successfully!');
-  };
-
-  const handleContactPress = (contact: Contact) => {
-    console.log('Contact pressed:', contact.name);
-    // TODO: Navigate to contact details
-  };
-
-  const handleMenuPress = (contact: Contact) => {
-    console.log('Menu pressed for:', contact.name);
-    // TODO: Show action sheet
-  };
+  const groupedContacts = groupContactsByLetter(filteredContacts);
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-        >
-          <ArrowLeft size={24} color={Colors.text.primary} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Service Contacts</Text>
+        <Text style={styles.title}>Contacts</Text>
         <TouchableOpacity
           style={styles.addButton}
-          onPress={handleAddContact}
+          onPress={() => router.push("/contacts/addContact")}
           activeOpacity={0.7}
         >
-          <Plus size={24} color={Colors.text.primary} />
+          <Plus size={28} color={Colors.primary.main} />
         </TouchableOpacity>
       </View>
 
-      {/* Search & Filter */}
-      <SearchFilterHeader
-        searchValue={searchQuery}
-        onSearchChange={setSearchQuery}
-        searchPlaceholder="Search for Service"
-        filters={filters}
-        onFilterPress={handleFilterPress}
-        onRemoveFilter={handleRemoveFilter}
-      />
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search contacts..."
+          placeholderTextColor={Colors.text.secondary}
+          value={searchQuery}
+          onChangeText={handleSearch}
+        />
+      </View>
 
       {/* Contact List */}
-      <SectionList
-        sections={sectionedContacts}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <ContactCard
-            contact={item}
-            onPress={() => handleContactPress(item)}
-            onMenuPress={() => handleMenuPress(item)}
-          />
-        )}
-        renderSectionHeader={({ section: { title } }) => (
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{title}</Text>
-          </View>
-        )}
-        contentContainerStyle={styles.listContent}
-        stickySectionHeadersEnabled={false}
-        showsVerticalScrollIndicator={false}
-      />
+      {isLoading ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>Loading...</Text>
+        </View>
+      ) : filteredContacts.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Phone size={48} color={Colors.text.secondary} />
+          <Text style={styles.emptyText}>No contacts found</Text>
+          <TouchableOpacity
+            style={styles.emptyButton}
+            onPress={() => router.push("/contacts/addContact")}
+          >
+            <Text style={styles.emptyButtonText}>Add a contact</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <SectionList
+          sections={groupedContacts}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <View style={styles.contactItem}>
+              <TouchableOpacity
+                style={styles.contactInfo}
+                onPress={() => router.push(`/contacts/${item.id}`)}
+              >
+                <View style={styles.contactDetails}>
+                  <Text style={styles.contactName}>{item.name}</Text>
+                  <Text style={styles.contactPhone}>{item.phone}</Text>
+                  {item.email && (
+                    <Text style={styles.contactEmail}>{item.email}</Text>
+                  )}
+                </View>
+              </TouchableOpacity>
 
-      {/* Add Contact Modal */}
-      <AddContactModal
-        visible={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onSave={handleSaveContact}
-      />
-
-      {/* Category Filter Modal */}
-      <CategoryFilterModal
-        visible={showCategoryModal}
-        onClose={() => setShowCategoryModal(false)}
-        onApply={handleApplyCategories}
-        initialSelected={selectedCategories}
-      />
+              <View style={styles.contactActions}>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => handleEdit(item)}
+                >
+                  <Edit2 size={20} color={Colors.primary.main} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.deleteButton]}
+                  onPress={() => handleDelete(item.id)}
+                >
+                  <Trash2 size={20} color={Colors.error} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+          renderSectionHeader={({ section: { title } }) => (
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>{title}</Text>
+            </View>
+          )}
+          contentContainerStyle={styles.listContent}
+          stickySectionHeadersEnabled={true}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -240,31 +212,35 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background.default,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: Spacing.screenHorizontal,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.md,
-    gap: Spacing.md,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.gray200,
   },
   title: {
-    flex: 1,
-    fontSize: Typography.fontSize.h3,
-    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.h2,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.text.primary,
   },
   addButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: Spacing.sm,
+  },
+  searchContainer: {
+    paddingHorizontal: Spacing.screenHorizontal,
+    paddingVertical: Spacing.md,
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: Colors.neutral.gray300,
+    borderRadius: 8,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    fontSize: Typography.fontSize.bodySmall,
+    color: Colors.text.primary,
+    backgroundColor: Colors.neutral.gray100,
   },
   listContent: {
     paddingHorizontal: Spacing.screenHorizontal,
@@ -272,11 +248,73 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     paddingVertical: Spacing.sm,
+    backgroundColor: Colors.background.default,
   },
   sectionTitle: {
     fontSize: Typography.fontSize.h3,
-    fontFamily: Typography.fontFamily.bold,
     fontWeight: Typography.fontWeight.bold,
+    color: Colors.primary.main,
+  },
+  contactItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.gray200,
+  },
+  contactInfo: {
+    flex: 1,
+  },
+  contactDetails: {
+    gap: Spacing.xs,
+  },
+  contactName: {
+    fontSize: Typography.fontSize.bodySmall,
+    fontWeight: Typography.fontWeight.semibold,
     color: Colors.text.primary,
+  },
+  contactPhone: {
+    fontSize: Typography.fontSize.small,
+    color: Colors.text.secondary,
+  },
+  contactEmail: {
+    fontSize: Typography.fontSize.small,
+    color: Colors.text.secondary,
+  },
+  contactActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginLeft: Spacing.md,
+  },
+  actionButton: {
+    padding: Spacing.sm,
+    borderRadius: 6,
+    backgroundColor: Colors.neutral.gray100,
+  },
+  deleteButton: {
+    backgroundColor: "#FEE8E8",
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  emptyText: {
+    fontSize: Typography.fontSize.bodySmall,
+    color: Colors.text.secondary,
+    textAlign: "center",
+  },
+  emptyButton: {
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.primary.main,
+    borderRadius: 8,
+  },
+  emptyButtonText: {
+    fontSize: Typography.fontSize.bodySmall,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.text.inverse,
   },
 });
