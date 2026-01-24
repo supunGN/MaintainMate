@@ -20,7 +20,7 @@ export default function HomeHeader({ onContactsPress, onSettingsPress }: HomeHea
 
   const loadUserName = async () => {
     try {
-      const name = await AsyncStorage.getItem('userName');
+      const name = await AsyncStorage.getItem('@user_name');
       if (name) {
         setUserName(name);
       }
@@ -41,16 +41,16 @@ export default function HomeHeader({ onContactsPress, onSettingsPress }: HomeHea
       <View style={styles.iconsContainer}>
         {/* Service Contacts Icon */}
         <TouchableOpacity
-          style={styles.iconButton}
+          style={[styles.iconButton, { backgroundColor: '#2F7D5A' }]}
           onPress={onContactsPress}
           activeOpacity={0.7}
         >
-          <BookUser size={Spacing.icon.md} color={Colors.text.primary} strokeWidth={2} />
+          <BookUser size={Spacing.icon.md} color="#FFFFFF" strokeWidth={2} />
         </TouchableOpacity>
 
         {/* Settings Icon */}
         <TouchableOpacity
-          style={styles.iconButton}
+          style={[styles.iconButton, { backgroundColor: Colors.background.paper }]}
           onPress={onSettingsPress}
           activeOpacity={0.7}
         >
@@ -76,11 +76,10 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   iconButton: {
-    width: Spacing.iconButton + 8, // Larger than onboarding back button (40 + 8 = 48)
+    width: Spacing.iconButton + 8,
     height: Spacing.iconButton + 8,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: Spacing.borderRadius.lg,
-    backgroundColor: Colors.background.paper,
   },
 });

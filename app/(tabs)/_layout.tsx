@@ -34,7 +34,7 @@ export default function TabLayout() {
         },
       }}>
       <Tabs.Screen
-        name="index"
+        name="home"
         options={{
           title: 'Home',
           tabBarIcon: ({ color }) => <Home size={24} color={color} />,
@@ -77,8 +77,13 @@ export default function TabLayout() {
       <Tabs.Screen
         name="maintenance-tips"
         options={{
-          title: 'Tips?',
-          tabBarIcon: ({ color }) => <Lightbulb size={24} color={color} />,
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="index"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

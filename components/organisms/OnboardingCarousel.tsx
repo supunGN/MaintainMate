@@ -147,6 +147,11 @@ export default function OnboardingCarousel({ slides, onComplete }: OnboardingCar
             onScroll={handleScroll}
             scrollEventThrottle={16}
             bounces={false}
+            getItemLayout={(data, index) => ({
+              length: width,
+              offset: width * index,
+              index,
+            })}
           />
         </View>
       </KeyboardAvoidingView>
