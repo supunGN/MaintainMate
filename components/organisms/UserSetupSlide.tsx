@@ -39,32 +39,32 @@ export default function UserSetupSlide({
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      {/* TOP SECTION - Fixed, visually stable */}
-      <View style={styles.topSection}>
-        {/* Illustration */}
-        <View style={styles.illustrationContainer}>
-          <Image source={illustration} style={[styles.illustration, {
-            width: Math.min(300, width * 0.75),
-            height: Math.min(300, width * 0.75),
-          }]} resizeMode="contain" />
-        </View>
-
-        {/* Title and Subtitle */}
-        <OnboardingContent title={title} subtitle={subtitle} />
-      </View>
-
-      {/* BOTTOM SECTION - Input */}
+      {/* TOP SECTION - Tap to dismiss keyboard */}
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.inputContainer}>
-          <Input
-            value={userName}
-            onChangeText={onNameChange}
-            placeholder="Enter your name"
-            returnKeyType="done"
-            onSubmitEditing={onSubmit}
-          />
+        <View style={styles.topSection}>
+          {/* Illustration */}
+          <View style={styles.illustrationContainer}>
+            <Image source={illustration} style={[styles.illustration, {
+              width: Math.min(300, width * 0.75),
+              height: Math.min(300, width * 0.75),
+            }]} resizeMode="contain" />
+          </View>
+
+          {/* Title and Subtitle */}
+          <OnboardingContent title={title} subtitle={subtitle} />
         </View>
       </TouchableWithoutFeedback>
+
+      {/* BOTTOM SECTION - Input (no wrapper so it receives touches) */}
+      <View style={styles.inputContainer}>
+        <Input
+          value={userName}
+          onChangeText={onNameChange}
+          placeholder="Enter your name"
+          returnKeyType="done"
+          onSubmitEditing={onSubmit}
+        />
+      </View>
     </ScrollView>
   );
 }
