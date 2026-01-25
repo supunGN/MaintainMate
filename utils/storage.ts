@@ -41,6 +41,34 @@ export const getServiceRecords = async (): Promise<ServiceRecord[]> => {
   }
 };
 
+export const updateServiceRecord = async (id: string, updatedFields: Partial<ServiceRecord>) => {
+  try {
+    const records = await getServiceRecords();
+    const index = records.findIndex(r => r.id === id);
+    if (index === -1) return null;
+
+    const updatedRecord = { ...records[index], ...updatedFields };
+    records[index] = updatedRecord;
+
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    return updatedRecord;
+  } catch (error) {
+    console.error('Error updating service record:', error);
+    throw error;
+  }
+};
+
+export const deleteServiceRecord = async (id: string) => {
+  try {
+    const records = await getServiceRecords();
+    const filteredRecords = records.filter(r => r.id !== id);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filteredRecords));
+  } catch (error) {
+    console.error('Error deleting service record:', error);
+    throw error;
+  }
+};
+
 export const clearServiceRecords = async () => {
   try {
     await AsyncStorage.removeItem(STORAGE_KEY);

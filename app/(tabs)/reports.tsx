@@ -96,7 +96,7 @@ export default function ReportsScreen() {
               {pieChartDataRaw.map((item, index) => (
                 <View key={index} style={styles.legendItem}>
                   <Text style={styles.legendTitle}>
-                    {item.label} ₹{item.value.toLocaleString()}
+                    {item.label} Rs. {item.value.toLocaleString()}
                   </Text>
                   <Text style={styles.legendValue}>
                     Rs. {((item.value / total) * 100).toFixed(1)}% {item.extra}
