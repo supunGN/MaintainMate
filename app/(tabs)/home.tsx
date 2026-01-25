@@ -5,7 +5,9 @@ import { Spacing } from '@/constants/Spacing';
 import { Typography } from '@/constants/Typography';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { ServiceRecord, getServiceRecords } from '@/utils/storage';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useState, useCallback } from 'react';
 import {
   Image,
   RefreshControl,
@@ -15,38 +17,55 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from 'react-native';
 
 export default function HomeScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [services, setServices] = useState<ServiceRecord[]>([]);
 
-  // Mock Data
-  const recentActivity = [
-    {
-      id: '1',
-      title: 'Toyota Corolla, Oil Change',
-      category: 'Today', // Using category field for date/subtitle to match design
-      date: 'Rs. 5,000', // Using date field for price to match design layout
-      cost: 5000,
-      image: undefined, // Add car icon if available
-    },
-    {
-      id: '2',
-      title: 'Dell XPS, Screen Repair',
-      category: '8 Dec 2024',
-      date: 'Rs. 12,500',
-      cost: 12500,
-      image: undefined, // Add laptop icon if available
-    },
-  ];
-
-  const onRefresh = React.useCallback(() => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1500);
+  const loadServices = useCallback(async () => {
+    try {
+      const data = await getServiceRecords();
+      setServices(data);
+    } catch (error) {
+      console.error('Error loading services:', error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadServices();
+    }, [loadServices])
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadServices();
+    setRefreshing(false);
+  }, [loadServices]);
+
+  const parseDate = (dateStr: string) => {
+    const [month, day, year] = dateStr.split(' - ').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const upcomingServices = services.filter(s => parseDate(s.date) > today).sort((a,b) => parseDate(a.date).getTime() - parseDate(b.date).getTime());
+  const recentActivities = services.filter(s => parseDate(s.date) <= today).sort((a,b) => parseDate(b.date).getTime() - parseDate(a.date).getTime());
+
+  const totalThisMonth = recentActivities
+    .filter(s => {
+      const date = parseDate(s.date);
+      return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
+    })
+    .reduce((acc, s) => acc + (parseFloat(s.cost) || 0), 0);
 
   const handleContactsPress = () => {
     router.push('/contacts' as any);
@@ -79,42 +98,53 @@ export default function HomeScreen() {
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>This Month</Text>
-            <Text style={styles.statValue}>Rs. 16,200</Text>
+            <Text style={styles.statValue}>Rs. {totalThisMonth.toLocaleString()}</Text>
             <Text style={styles.statChange}>
-              <Text style={{ color: '#E53935' }}>↓ 12%</Text> last month
+              <Text style={{ color: '#2F7D5A' }}>↑ 0%</Text> last month
             </Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Services Done</Text>
-            <Text style={styles.statValue}>06</Text>
-            <Text style={styles.statSubtext}>Previously 03</Text>
+            <Text style={styles.statValue}>{recentActivities.length.toString().padStart(2, '0')}</Text>
+            <Text style={styles.statSubtext}>Previously 00</Text>
           </View>
         </View>
 
-        {/* Vehicle/Item Card (Carousel Item) */}
-        <View style={styles.vehicleCard}>
-          <View style={styles.vehicleHeader}>
-            <View style={styles.iconContainer}>
-              <Ionicons name="calendar-outline" size={24} color="#2F7D5A" />
+        {/* Vehicle/Item Card (Carousel Item) - showing first upcoming */}
+        {upcomingServices.length > 0 ? (
+          <View style={styles.vehicleCard}>
+            <View style={styles.vehicleHeader}>
+              <TouchableOpacity 
+                style={styles.iconContainer}
+                onPress={() => router.push('/(tabs)/upcoming' as any)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="calendar-outline" size={24} color="#2F7D5A" />
+              </TouchableOpacity>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {Math.ceil((parseDate(upcomingServices[0].date).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))} days left
+                </Text>
+              </View>
             </View>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>In 3 days</Text>
+            
+            <View style={styles.vehicleContentRow}>
+               <View>
+                  <Text style={styles.vehicleTitle}>{upcomingServices[0].itemName}</Text>
+                  <Text style={styles.vehicleDate}>{upcomingServices[0].date}</Text>
+               </View>
+                <Image 
+                  source={upcomingServices[0].image ? { uri: upcomingServices[0].image } : require('@/assets/images/onboarding/onboarding_1.png')} 
+                  style={styles.vehicleImage}
+                  resizeMode="cover"
+                />
             </View>
           </View>
-          
-          <View style={styles.vehicleContentRow}>
-             <View>
-                <Text style={styles.vehicleTitle}>Toyota Corolla</Text>
-                <Text style={styles.vehicleDate}>19 Jan 2024</Text>
-             </View>
-             {/* Placeholder for Car Image - using a colored box or icon for now */}
-              <Image 
-                source={require('@/assets/images/onboarding/onboarding_1.png')} 
-                style={styles.vehicleImage}
-                resizeMode="cover"
-              />
+        ) : (
+          <View style={[styles.vehicleCard, { alignItems: 'center', paddingVertical: 40 }]}>
+            <Text style={{ color: '#888', fontSize: 16 }}>No upcoming services</Text>
           </View>
-        </View>
+        )}
         
         {/* Dots Indicator */}
         <View style={styles.paginationDots}>
@@ -129,19 +159,22 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.listContainer}>
-          {recentActivity.map((item) => (
-             <View key={item.id} style={styles.activityItem}>
-                 <View style={styles.activityIcon}>
-                     {/* Placeholder icon */}
-                    <Ionicons name="car-sport-outline" size={24} color="#555" />
-                 </View>
-                 <View style={styles.activityContent}>
-                     <Text style={styles.activityTitle}>{item.title}</Text>
-                     <Text style={styles.activitySubtitle}>{item.category}</Text>
-                 </View>
-                 <Text style={styles.activityPrice}>{item.date}</Text>
-             </View>
-          ))}
+          {recentActivities.length > 0 ? (
+            recentActivities.map((item) => (
+               <View key={item.id} style={styles.activityItem}>
+                   <View style={styles.activityIcon}>
+                      <Ionicons name="construct-outline" size={24} color="#555" />
+                   </View>
+                   <View style={styles.activityContent}>
+                       <Text style={styles.activityTitle}>{item.itemName}, {item.repairType}</Text>
+                       <Text style={styles.activitySubtitle}>{item.date}</Text>
+                   </View>
+                   <Text style={styles.activityPrice}>Rs. {parseFloat(item.cost).toLocaleString()}</Text>
+               </View>
+            ))
+          ) : (
+            <Text style={{ textAlign: 'center', padding: 20, color: '#888' }}>No recent activities</Text>
+          )}
         </View>
 
         <View style={{ height: 80 }} />
