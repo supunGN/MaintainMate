@@ -4,83 +4,49 @@ import PageHeader from '@/components/molecules/PageHeader';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 import { Typography } from '@/constants/Typography';
-import { useAddService } from '@/hooks/useAddService';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Camera, CheckCircle } from 'lucide-react-native';
+import { CheckCircle } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export default function AddServiceFormScreen() {
+export default function EditServiceScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const category = params.category as string;
   const insets = useSafeAreaInsets();
-  const addServiceMutation = useAddService();
 
-  const [itemName, setItemName] = useState('');
-  const [repairType, setRepairType] = useState('');
-  const [date, setDate] = useState(new Date());
+  const [itemName, setItemName] = useState((params.name as string) || '');
+  const [date, setDate] = useState(() => parseDate((params.date as string) || ''));
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [cost, setCost] = useState('');
-  const [note, setNote] = useState('');
-  const [image, setImage] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleAddPhoto = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'We need camera roll permissions to upload a photo.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.7,
-    });
-
-    if (!result.canceled) {
-      setImage(result.assets[0].uri);
-    }
+  const handleBack = () => {
+    router.back();
   };
 
   const onDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
-    console.log('Date Changed:', event.type, selectedDate);
-    
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
     }
-    
     if (selectedDate) {
       setDate(selectedDate);
     }
   };
 
-  const handleWebDateChange = (text: string) => {
-    // text is YYYY-MM-DD from native HTML5 date input
-    if (text) {
-      const parts = text.split('-');
-      if (parts.length === 3) {
-        const newDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        setDate(newDate);
-      }
-    }
-  };
+  const handleOpenDatePicker = useCallback(() => {
+    setShowDatePicker(true);
+  }, []);
 
   const formatDate = (date: Date) => {
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -90,55 +56,29 @@ export default function AddServiceFormScreen() {
   };
 
   const handleSubmit = useCallback(async () => {
-    if (!itemName || !repairType || !cost) {
-      Alert.alert('Error', 'Please fill in all required fields.');
-      return;
-    }
-
-    try {
-      await addServiceMutation.mutateAsync({
-        category,
-        itemName,
-        repairType,
-        date: formatDate(date),
-        cost,
-        note,
-        image: image || undefined,
-      });
-
+    setIsSaving(true);
+    
+    // Simulate save
+    setTimeout(() => {
+      setIsSaving(false);
       setShowSuccess(true);
-      
-      // Auto-redirect after 2 seconds
-      setTimeout(() => {
-        setShowSuccess(false);
-        router.push('/(tabs)');
-      }, 2000);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to save service record. Please try again.');
-    }
-  }, [itemName, repairType, cost, category, date, note, image, addServiceMutation, router]);
+    }, 500);
+  }, [itemName, date]);
 
-  const handleBack = useCallback(() => {
-    router.back();
-  }, [router]);
-
-  const handleOpenDatePicker = useCallback(() => {
-    setShowDatePicker(true);
-  }, []);
-
-  const handleCloseSuccess = useCallback(() => {
+  const handleCloseSuccess = () => {
     setShowSuccess(false);
-    router.push('/(tabs)');
-  }, [router]);
+    router.back();
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         {/* Header */}
-        <PageHeader title="Add Service" showBackButton onBackPress={handleBack} />
+        <PageHeader title="Edit Service" showBackButton onBackPress={handleBack} />
 
         {/* Form Content */}
         <ScrollView
@@ -148,23 +88,12 @@ export default function AddServiceFormScreen() {
         >
           {/* Item Name */}
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Add Item Name</Text>
+            <Text style={styles.label}>Service Name</Text>
             <Input
               value={itemName}
               onChangeText={setItemName}
               placeholder="e.g., Samsung Refrigerator Model XYZ"
               autoCapitalize="words"
-            />
-          </View>
-
-          {/* Repair Type */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Repair type</Text>
-            <Input
-              value={repairType}
-              onChangeText={setRepairType}
-              placeholder="e.g., Compressor replacement, Annual servicing"
-              autoCapitalize="sentences"
             />
           </View>
 
@@ -174,7 +103,7 @@ export default function AddServiceFormScreen() {
             {Platform.OS === 'web' ? (
               <Input
                 value={`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`}
-                onChangeText={handleWebDateChange}
+                onChangeText={() => {}}
                 // @ts-ignore - type is supported on web for react-native-web
                 type="date"
                 placeholder="MM - DD - YYYY"
@@ -201,58 +130,14 @@ export default function AddServiceFormScreen() {
               </>
             )}
           </View>
-
-          {/* Cost */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Cost</Text>
-            <Input
-              value={cost}
-              onChangeText={setCost}
-              placeholder="e.g., 15000"
-              keyboardType="numeric"
-            />
-          </View>
-
-          {/* Note */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Note (Optional)</Text>
-            <Input
-              value={note}
-              onChangeText={setNote}
-              placeholder="e.g., Warranty valid until Dec 2025, technician contact: +1234567890"
-              multiline
-              numberOfLines={4}
-              style={styles.noteInput}
-              autoCapitalize="sentences"
-            />
-          </View>
-
-          {/* Add Photo */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Add Photo</Text>
-            <TouchableOpacity
-              style={styles.photoUpload}
-              onPress={handleAddPhoto}
-              activeOpacity={0.7}
-            >
-              {image ? (
-                <Image source={{ uri: image }} style={styles.previewImage} />
-              ) : (
-                <>
-                  <Camera size={32} color={Colors.neutral.gray500} />
-                  <Text style={styles.photoText}>Tap to add receipt or service photo</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
         </ScrollView>
 
         {/* Footer */}
         <View style={styles.footer}>
           <Button
-            title={addServiceMutation.isPending ? "Saving..." : "Add"}
+            title={isSaving ? "Saving..." : "Save"}
             onPress={handleSubmit}
-            disabled={addServiceMutation.isPending || !itemName || !repairType || !cost}
+            disabled={isSaving || !itemName}
           />
         </View>
       </KeyboardAvoidingView>
@@ -268,8 +153,8 @@ export default function AddServiceFormScreen() {
             <View style={styles.successIconContainer}>
               <CheckCircle size={40} color={Colors.primary.main} />
             </View>
-            <Text style={styles.successTitle}>Added Successfully!</Text>
-            <Text style={styles.successSubtext}>Your service record has been saved.</Text>
+            <Text style={styles.successTitle}>Updated Successfully!</Text>
+            <Text style={styles.successSubtext}>Your service record has been updated.</Text>
             <TouchableOpacity 
               style={styles.modalButton}
               onPress={handleCloseSuccess}
@@ -281,6 +166,16 @@ export default function AddServiceFormScreen() {
       </Modal>
     </View>
   );
+}
+
+function parseDate(str: string): Date {
+  try {
+    const parts = str.split(' - ');
+    if (parts.length === 3) {
+      return new Date(+parts[2], +parts[0] - 1, +parts[1]);
+    }
+  } catch {}
+  return new Date();
 }
 
 const styles = StyleSheet.create({
@@ -319,35 +214,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     color: Colors.text.primary,
     fontWeight: Typography.fontWeight.regular,
-  },
-  placeholderText: {
-    color: Colors.neutral.gray500,
-  },
-  noteInput: {
-    height: 120,
-    paddingTop: Spacing.md,
-    textAlignVertical: 'top',
-  },
-  photoUpload: {
-    height: 160,
-    borderRadius: Spacing.borderRadius.lg,
-    backgroundColor: Colors.neutral.gray100,
-    borderWidth: 2,
-    borderColor: Colors.neutral.gray300,
-    borderStyle: 'dashed',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  photoText: {
-    fontSize: Typography.fontSize.caption,
-    color: Colors.neutral.gray500,
-    fontFamily: Typography.fontFamily.regular,
-  },
-  previewImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: Spacing.borderRadius.lg,
   },
   footer: {
     paddingHorizontal: Spacing.screenHorizontal,

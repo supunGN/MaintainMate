@@ -35,14 +35,19 @@ export const Colors = {
 
   // Semantic Colors
   success: '#4CAF50',
+  successLight: '#E8F5E9',
   warning: '#FF9800',
   error: '#F44336',
+  errorDark: '#E53935',
+  errorLight: '#FFEBEE',
   info: '#2196F3',
 
   // Text Colors
   text: {
     primary: '#212121',
     secondary: '#757575',
+    tertiary: '#888888',
+    quaternary: '#555555',
     disabled: '#BDBDBD',
     inverse: '#FFFFFF',
   },
@@ -52,6 +57,22 @@ export const Colors = {
     default: '#FFFFFF',
     paper: '#F5F5F5',
     dark: '#212121',
+    light: '#F7F9FC',
+    subtle: '#F0F0F0',
+  },
+
+  // Border Colors
+  border: {
+    light: '#E5E5E5',
+    default: '#E0E0E0',
+    dark: '#BDBDBD',
+  },
+
+  // Chart Colors (for reports)
+  chart: {
+    primary: '#2F8B57',
+    secondary: '#66BB6A',
+    tertiary: '#A5D6A7',
   },
 
   // Onboarding Colors
@@ -61,3 +82,4 @@ export const Colors = {
     skipText: '#757575',
   },
 } as const;
+

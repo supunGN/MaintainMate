@@ -22,20 +22,24 @@ interface InputProps extends Omit<TextInputProps, 'style'> {
   style?: object;
 }
 
-export default function Input({
-  value,
-  onChangeText,
-  placeholder,
-  autoFocus = false,
-  keyboardType = 'default',
-  returnKeyType = 'done',
-  onSubmitEditing,
-  style,
-  ...rest
-}: InputProps) {
+const Input = React.forwardRef<TextInput, InputProps>((
+  {
+    value,
+    onChangeText,
+    placeholder,
+    autoFocus = false,
+    keyboardType = 'default',
+    returnKeyType = 'done',
+    onSubmitEditing,
+    style,
+    ...rest
+  },
+  ref
+) => {
   return (
     <View style={styles.container}>
       <TextInput
+        ref={ref}
         style={[styles.input, style]}
         value={value}
         onChangeText={onChangeText}
@@ -51,7 +55,11 @@ export default function Input({
       />
     </View>
   );
-}
+});
+
+Input.displayName = 'Input';
+
+export default Input;
 
 const styles = StyleSheet.create({
   container: {

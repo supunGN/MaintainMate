@@ -11,7 +11,7 @@ export default function Index() {
 
   const checkOnboarding = async () => {
     try {
-      const userName = await AsyncStorage.getItem('userName');
+      const userName = await AsyncStorage.getItem('@user_name');
       setHasCompletedOnboarding(!!userName);
     } catch (error) {
       console.error('Error checking onboarding:', error);

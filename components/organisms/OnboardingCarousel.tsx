@@ -3,15 +3,15 @@ import { Spacing } from '@/constants/Spacing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useRef } from 'react';
 import {
-  Dimensions,
-  FlatList,
-  ImageSourcePropType,
-  KeyboardAvoidingView,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  Platform,
-  StyleSheet,
-  View,
+    Dimensions,
+    FlatList,
+    ImageSourcePropType,
+    KeyboardAvoidingView,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
+    Platform,
+    StyleSheet,
+    View,
 } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import Button from '../atoms/Button';
@@ -100,7 +100,7 @@ export default function OnboardingCarousel({ slides, onComplete }: OnboardingCar
       <KeyboardAvoidingView 
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={16} // 16px gap between keyboard and input
+        keyboardVerticalOffset={Spacing.md}
       >
         {/* ZONE 1: Top Header - Fixed Height */}
         <View style={styles.header}>

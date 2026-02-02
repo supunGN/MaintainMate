@@ -51,13 +51,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Spacing.screenHorizontal,
-    paddingTop: Spacing.xl,
-    marginTop: Spacing.xxl,
+    paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
   },
   leftContainer: {
-    width: 40,
-    height: 40,
+    minWidth: 40,
     justifyContent: 'center',
   },
 });
