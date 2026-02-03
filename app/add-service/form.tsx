@@ -1,11 +1,13 @@
 import Button from '@/components/atoms/Button';
 import Input from '@/components/atoms/Input';
 import PageHeader from '@/components/molecules/PageHeader';
+import PlatformDatePicker from '@/components/molecules/PlatformDatePicker';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 import { Typography } from '@/constants/Typography';
 import { useAddService } from '@/hooks/useAddService';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { registerForPushNotificationsAsync, scheduleServiceReminder } from '@/utils/notifications';
+import { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Camera, CheckCircle } from 'lucide-react-native';
@@ -40,7 +42,47 @@ export default function AddServiceFormScreen() {
   const [image, setImage] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const handleAddPhoto = async () => {
+  const handleAddPhoto = () => {
+    Alert.alert(
+      'Add Photo',
+      'Choose an option',
+      [
+        {
+          text: 'Take Photo',
+          onPress: openCamera,
+        },
+        {
+          text: 'Choose from Library',
+          onPress: openImageLibrary,
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const openCamera = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'We need camera permissions to take a photo.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      setImage(result.assets[0].uri);
+    }
+  };
+
+  const openImageLibrary = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission Denied', 'We need camera roll permissions to upload a photo.');
@@ -60,12 +102,12 @@ export default function AddServiceFormScreen() {
   };
 
   const onDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
-    console.log('Date Changed:', event.type, selectedDate);
-    
+    // Android closes automatically on selection/cancel
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
     }
-    
+
+    // Update date if selected
     if (selectedDate) {
       setDate(selectedDate);
     }
@@ -96,6 +138,19 @@ export default function AddServiceFormScreen() {
     }
 
     try {
+      // 1. Schedule Reminder by Default
+      let reminderId: string | undefined;
+      const hasPermission = await registerForPushNotificationsAsync();
+
+      if (hasPermission) {
+        reminderId = await scheduleServiceReminder(
+          formatDate(date),
+          `Maintenance Reminder: ${itemName}`,
+          `It's time for ${repairType}!`
+        ) || undefined;
+      }
+
+      // 2. Save Service with reminderId
       await addServiceMutation.mutateAsync({
         category,
         itemName,
@@ -104,10 +159,11 @@ export default function AddServiceFormScreen() {
         cost,
         note,
         image: image || undefined,
+        reminderId,
       });
 
       setShowSuccess(true);
-      
+
       // Auto-redirect after 2 seconds
       setTimeout(() => {
         setShowSuccess(false);
@@ -171,35 +227,21 @@ export default function AddServiceFormScreen() {
           {/* Date of Service */}
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Date of Service</Text>
-            {Platform.OS === 'web' ? (
-              <Input
-                value={`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`}
-                onChangeText={handleWebDateChange}
-                // @ts-ignore - type is supported on web for react-native-web
-                type="date"
-                placeholder="MM - DD - YYYY"
-              />
-            ) : (
-              <>
-                <TouchableOpacity
-                  style={styles.dateInput}
-                  onPress={handleOpenDatePicker}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.dateText}>
-                    {formatDate(date)}
-                  </Text>
-                </TouchableOpacity>
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={date}
-                    mode="date"
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    onChange={onDateChange}
-                  />
-                )}
-              </>
-            )}
+            <TouchableOpacity
+              style={styles.dateInput}
+              onPress={handleOpenDatePicker}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.dateText}>
+                {formatDate(date)}
+              </Text>
+            </TouchableOpacity>
+            <PlatformDatePicker
+              visible={showDatePicker}
+              date={date}
+              onChange={onDateChange}
+              onClose={() => setShowDatePicker(false)}
+            />
           </View>
 
           {/* Cost */}
@@ -270,7 +312,7 @@ export default function AddServiceFormScreen() {
             </View>
             <Text style={styles.successTitle}>Added Successfully!</Text>
             <Text style={styles.successSubtext}>Your service record has been saved.</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.modalButton}
               onPress={handleCloseSuccess}
             >

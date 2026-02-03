@@ -8,13 +8,17 @@ import { useRouter } from 'expo-router';
 import { Calendar, ChevronRight } from 'lucide-react-native';
 import React, { useCallback, useMemo } from 'react';
 import {
-    Image,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  FlatList,
+  Image,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -36,7 +40,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { data: services = [], isLoading, refetch } = useServiceRecords();
 
-  const { upcomingServices, recentActivities, totalThisMonth, servicesDone } = useMemo(() => {
+  const { upcomingServices, recentActivities, totalThisMonth, totalLastMonth, countThisMonth, countLastMonth, costPercentageChange } = useMemo(() => {
     const parseDate = (dateStr: string) => {
       const [month, day, year] = dateStr.split(' - ').map(Number);
       return new Date(year, month - 1, day);
@@ -48,23 +52,49 @@ export default function HomeScreen() {
     const upcoming = services
       .filter(s => parseDate(s.date) > today)
       .sort((a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime());
-    
+
     const recent = services
       .filter(s => parseDate(s.date) <= today)
       .sort((a, b) => parseDate(b.date).getTime() - parseDate(a.date).getTime());
 
-    const total = recent
+    const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+
+    const thisMonthTotal = recent
       .filter(s => {
         const date = parseDate(s.date);
         return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
       })
       .reduce((acc, s) => acc + (parseFloat(s.cost) || 0), 0);
 
-    return { 
-      upcomingServices: upcoming, 
-      recentActivities: recent.slice(0, 5), // Show only 5 recent
-      totalThisMonth: total,
-      servicesDone: recent.length
+    const lastMonthTotal = recent
+      .filter(s => {
+        const date = parseDate(s.date);
+        return date.getMonth() === lastMonth.getMonth() && date.getFullYear() === lastMonth.getFullYear();
+      })
+      .reduce((acc, s) => acc + (parseFloat(s.cost) || 0), 0);
+
+    const thisMonthCount = recent.filter(s => {
+      const date = parseDate(s.date);
+      return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
+    }).length;
+
+    const lastMonthCount = recent.filter(s => {
+      const date = parseDate(s.date);
+      return date.getMonth() === lastMonth.getMonth() && date.getFullYear() === lastMonth.getFullYear();
+    }).length;
+
+    const percentageChange = lastMonthTotal > 0
+      ? ((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100
+      : 0;
+
+    return {
+      upcomingServices: upcoming,
+      recentActivities: recent.slice(0, 5),
+      totalThisMonth: thisMonthTotal,
+      totalLastMonth: lastMonthTotal,
+      countThisMonth: thisMonthCount,
+      countLastMonth: lastMonthCount,
+      costPercentageChange: percentageChange
     };
   }, [services]);
 
@@ -92,6 +122,20 @@ export default function HomeScreen() {
   const onRefresh = useCallback(async () => {
     await refetch();
   }, [refetch]);
+
+  const [activeIndex, setActiveIndex] = React.useState(0);
+  const { width } = Dimensions.get('window');
+
+  const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const slideSize = event.nativeEvent.layoutMeasurement.width;
+    const index = event.nativeEvent.contentOffset.x / slideSize;
+    const roundIndex = Math.round(index);
+    if (roundIndex !== activeIndex) {
+      setActiveIndex(roundIndex);
+    }
+  }, [activeIndex]);
+
+  const topUpcoming = useMemo(() => upcomingServices.slice(0, 3), [upcomingServices]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -121,51 +165,88 @@ export default function HomeScreen() {
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>This Month</Text>
             <Text style={styles.statValue}>Rs. {totalThisMonth.toLocaleString()}</Text>
-            <Text style={styles.statChange}>
-              <Text style={{ color: Colors.error }}>↓ 12%</Text> last month
-            </Text>
+            {totalLastMonth > 0 ? (
+              <Text style={styles.statChange}>
+                <Text style={{ color: costPercentageChange > 0 ? Colors.error : Colors.success }}>
+                  {costPercentageChange > 0 ? '↑' : '↓'} {Math.abs(Math.round(costPercentageChange))}%
+                </Text> last month
+              </Text>
+            ) : (
+              <Text style={styles.statChange}>New track started</Text>
+            )}
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Services Done</Text>
-            <Text style={styles.statValue}>{servicesDone.toString().padStart(2, '0')}</Text>
-            <Text style={styles.statSubtext}>Previously 03</Text>
+            <Text style={styles.statValue}>{countThisMonth.toString().padStart(2, '0')}</Text>
+            <Text style={styles.statSubtext}>
+              {countLastMonth > 0 ? `Previously ${countLastMonth.toString().padStart(2, '0')}` : 'First month'}
+            </Text>
           </View>
         </View>
 
-        {/* Upcoming Service Card */}
-        {upcomingServices.length > 0 ? (
-          <View style={styles.vehicleCard}>
-            <View style={styles.vehicleHeader}>
-              <TouchableOpacity 
-                style={styles.iconContainer}
-                onPress={handleViewUpcoming}
-                activeOpacity={0.7}
-              >
-                <Calendar size={24} color={Colors.primary.main} />
-              </TouchableOpacity>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>
-                  In {calculateDaysLeft(upcomingServices[0].date)} days
-                </Text>
-              </View>
-            </View>
-            
-            <View style={styles.vehicleContentRow}>
-              <View style={styles.vehicleInfo}>
-                <Text style={styles.vehicleTitle}>{upcomingServices[0].itemName}</Text>
-                <Text style={styles.vehicleDate}>{upcomingServices[0].date}</Text>
-              </View>
-              {upcomingServices[0].image ? (
-                <Image 
-                  source={{ uri: upcomingServices[0].image }} 
-                  style={styles.vehicleImage}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={styles.vehicleImagePlaceholder}>
-                  <Ionicons name="image-outline" size={40} color={Colors.neutral.gray400} />
+        {/* Upcoming Service Carousel */}
+        {topUpcoming.length > 0 ? (
+          <View>
+            <FlatList
+              data={topUpcoming}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onScroll={onScroll}
+              scrollEventThrottle={16}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }: { item: any }) => (
+                <View style={{ width: width - (Spacing.screenHorizontal * 2), paddingRight: Spacing.md }}>
+                  <View style={styles.vehicleCard}>
+                    {/* Header: Icon & Badge */}
+                    <View style={styles.vehicleHeader}>
+                      <TouchableOpacity
+                        style={styles.iconContainer}
+                        onPress={handleViewUpcoming}
+                        activeOpacity={0.7}
+                      >
+                        <Calendar size={24} color={Colors.primary.main} />
+                      </TouchableOpacity>
+                      <View style={styles.badge}>
+                        <Text style={styles.badgeText}>
+                          In {calculateDaysLeft(item.date)} days
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Content: Info & Image */}
+                    <View style={styles.vehicleContentRow}>
+                      <View style={styles.vehicleInfo}>
+                        <Text style={styles.vehicleTitle} numberOfLines={1}>{item.itemName}</Text>
+                        <Text style={styles.vehicleDate}>{item.date}</Text>
+                      </View>
+                      {item.image ? (
+                        <Image
+                          source={{ uri: item.image }}
+                          style={styles.vehicleImage}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={styles.vehicleImagePlaceholder}>
+                          <Ionicons name="image-outline" size={40} color={Colors.neutral.gray400} />
+                        </View>
+                      )}
+                    </View>
+                  </View>
                 </View>
               )}
+            />
+            {/* Dynamic Dots Indicator */}
+            <View style={styles.paginationDots}>
+              {topUpcoming.map((_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.dot,
+                    activeIndex === index && styles.activeDot
+                  ]}
+                />
+              ))}
             </View>
           </View>
         ) : (
@@ -173,13 +254,6 @@ export default function HomeScreen() {
             <Text style={styles.emptyText}>No upcoming services</Text>
           </View>
         )}
-        
-        {/* Dots Indicator */}
-        <View style={styles.paginationDots}>
-          <View style={[styles.dot, styles.activeDot]} />
-          <View style={styles.dot} />
-          <View style={styles.dot} />
-        </View>
 
         {/* Recent Activities */}
         <View style={styles.sectionHeader}>
@@ -189,16 +263,16 @@ export default function HomeScreen() {
         <View style={styles.listContainer}>
           {recentActivities.length > 0 ? (
             recentActivities.map((item, index) => (
-              <View 
-                key={item.id} 
+              <View
+                key={item.id}
                 style={[
                   styles.activityItem,
                   index === recentActivities.length - 1 && styles.lastActivityItem
                 ]}
               >
                 <View style={styles.activityIconContainer}>
-                  <Image 
-                    source={getCategoryIcon(item.category)} 
+                  <Image
+                    source={getCategoryIcon(item.category)}
                     style={styles.categoryIcon}
                     resizeMode="contain"
                   />
@@ -392,17 +466,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   activityTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: Typography.fontWeight.semibold,
     color: Colors.text.primary,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   activitySubtitle: {
-    fontSize: 12,
+    fontSize: 14,
     color: Colors.text.secondary,
   },
   activityPrice: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: Typography.fontWeight.semibold,
     color: Colors.text.primary,
   },

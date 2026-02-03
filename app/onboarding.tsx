@@ -20,27 +20,21 @@ const ONBOARDING_SLIDES: OnboardingSlideData[] = [
   },
   {
     id: '3',
-    illustration: require('@/assets/images/onboarding/onboarding_3.png'), 
+    illustration: require('@/assets/images/onboarding/onboarding_3.png'),
     title: 'Upcoming Maintenance',
     subtitle: 'View your upcoming services and never miss an important date.',
   },
   {
     id: '4',
-    illustration: require('@/assets/images/onboarding/onboarding_4.png'), 
+    illustration: require('@/assets/images/onboarding/onboarding_4.png'),
     title: 'Track Your Expenses',
     subtitle: 'See how much you spend on maintenance and manage your costs better.',
   },
   {
     id: '5',
-    illustration: require('@/assets/images/onboarding/onboarding_5.png'), 
+    illustration: require('@/assets/images/onboarding/onboarding_5.png'),
     title: 'View Past Records',
     subtitle: 'Access your past maintenance history whenever you need it.',
-  },
-  {
-    id: '6',
-    illustration: require('@/assets/images/onboarding/onboarding_6.png'), // Using same image
-    title: "Let's get to know each other!",
-    subtitle: 'To personalize your maintenance dashboard, what should I call you?',
   },
 ];
 
@@ -48,8 +42,8 @@ export default function OnboardingScreen() {
   const router = useRouter();
 
   const handleComplete = () => {
-    // Navigate to tabs after onboarding
-    router.replace('/(tabs)');
+    // Navigate to setup after onboarding slides
+    router.replace('/setup');
   };
 
   return (

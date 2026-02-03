@@ -1,3 +1,4 @@
+import EmptyState from "@/components/atoms/EmptyState";
 import PageHeader from "@/components/molecules/PageHeader";
 import CategoryFilterModal from "@/components/organisms/CategoryFilterModal";
 import DateFilterModal, { DateFilterType } from "@/components/organisms/DateFilterModal";
@@ -8,30 +9,57 @@ import { Typography } from "@/constants/Typography";
 import { useServiceRecords } from "@/hooks/useServiceRecords";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    View
+  ScrollView,
+  StyleSheet,
+  Text,
+  View
 } from "react-native";
 import { BarChart, PieChart } from "react-native-gifted-charts";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const INITIAL_FILTERS = [
-  { id: "all", label: "All", isActive: true },
-  { id: "category", label: "Category", isActive: false },
-  { id: "byDate", label: "by Date", isActive: false },
-];
+const CATEGORY_LABELS: Record<string, string> = {
+  home_appliances: "Home Appliances",
+  vehicles: "Vehicles",
+  entertainment: "Entertainment",
+  computing: "Computing",
+  security: "Security & Smart",
+  other: "Other",
+};
+
+const DATE_LABELS: Record<string, string> = {
+  last30: "Last 30 Days",
+  last90: "Last 90 Days",
+  thisYear: "This Year",
+};
 
 export default function ReportsScreen() {
   const insets = useSafeAreaInsets();
   const { data: services = [] } = useServiceRecords();
-  
+
   const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState(INITIAL_FILTERS);
+
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [dateModalVisible, setDateModalVisible] = useState(false);
   const [dateFilter, setDateFilter] = useState<DateFilterType>(null);
+
+  // Dynamic filters based on selection
+  const filters = useMemo(() => [
+    {
+      id: "category",
+      label: selectedCategories.length > 0
+        ? CATEGORY_LABELS[selectedCategories[0]]
+        : "Category",
+      isActive: selectedCategories.length > 0
+    },
+    {
+      id: "byDate",
+      label: dateFilter
+        ? DATE_LABELS[dateFilter]
+        : "by Date",
+      isActive: !!dateFilter
+    },
+  ], [selectedCategories, dateFilter]);
 
   // Parse date from service record format (MM - DD - YYYY)
   const parseDate = useCallback((dateStr: string) => {
@@ -64,20 +92,12 @@ export default function ReportsScreen() {
       const now = new Date();
       filtered = filtered.filter((item) => {
         const itemDate = parseDate(item.date);
-        
+
         switch (dateFilter) {
           case "last30":
-            return (now.getTime() - itemDate.getTime()) <= 30 * 24 * 60 * 60 * 1000;
+            return itemDate >= new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
           case "last90":
-            return (now.getTime() - itemDate.getTime()) <= 90 * 24 * 60 * 60 * 1000;
-          case "thisMonth":
-            return itemDate.getMonth() === now.getMonth() && itemDate.getFullYear() === now.getFullYear();
-          case "lastMonth": {
-            const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-            return itemDate.getMonth() === lastMonth.getMonth() && itemDate.getFullYear() === lastMonth.getFullYear();
-          }
-          case "last6Months":
-            return (now.getTime() - itemDate.getTime()) <= 180 * 24 * 60 * 60 * 1000;
+            return itemDate >= new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
           case "thisYear":
             return itemDate.getFullYear() === now.getFullYear();
           default:
@@ -149,12 +169,12 @@ export default function ReportsScreen() {
     const last5Months = sortedMonths.slice(-5);
 
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    
+
     return last5Months.map((monthKey, index) => {
       const [year, month] = monthKey.split('-');
       const monthIndex = parseInt(month) - 1;
       const isCurrentMonth = index === last5Months.length - 1;
-      
+
       return {
         value: grouped[monthKey],
         label: monthNames[monthIndex],
@@ -175,19 +195,17 @@ export default function ReportsScreen() {
   }, [filteredServices]);
 
   const handleFilterPress = useCallback((filterId: string) => {
-    setFilters((prev) =>
-      prev.map((f) => ({
-        ...f,
-        isActive: f.id === filterId,
-      }))
-    );
-
     if (filterId === "category") {
       setCategoryModalVisible(true);
     } else if (filterId === "byDate") {
       setDateModalVisible(true);
-    } else if (filterId === "all") {
+    }
+  }, []);
+
+  const handleRemoveFilter = useCallback((id: string) => {
+    if (id === "category") {
       setSelectedCategories([]);
+    } else if (id === "byDate") {
       setDateFilter(null);
     }
   }, []);
@@ -234,10 +252,11 @@ export default function ReportsScreen() {
           searchPlaceholder="Search expenses"
           filters={filters}
           onFilterPress={handleFilterPress}
+          onRemoveFilter={handleRemoveFilter}
         />
 
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent} 
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
           {/* Total Maintenance Card */}
@@ -272,7 +291,10 @@ export default function ReportsScreen() {
                 </View>
               </View>
             ) : (
-              <Text style={styles.emptyText}>No data available</Text>
+              <EmptyState
+                title="No data available"
+                subtitle="Add maintenance records to see your expense reports"
+              />
             )}
           </View>
 
@@ -325,7 +347,10 @@ export default function ReportsScreen() {
                 ))}
               </View>
             ) : (
-              <Text style={styles.emptyText}>No expenses found</Text>
+              <EmptyState
+                title="No expenses found"
+                subtitle="Your maintenance costs will be listed here"
+              />
             )}
           </View>
         </ScrollView>
@@ -362,6 +387,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: Spacing.screenHorizontal,
     paddingBottom: Spacing.xl,
+    paddingTop: Spacing.md,
   },
   card: {
     backgroundColor: Colors.neutral.gray100,
@@ -466,10 +492,5 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeight.semibold,
     color: Colors.text.primary,
   },
-  emptyText: {
-    fontSize: Typography.fontSize.body,
-    color: Colors.text.secondary,
-    textAlign: "center",
-    paddingVertical: Spacing.lg,
-  },
+
 });

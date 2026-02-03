@@ -1,20 +1,15 @@
 import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
+import React, { useEffect, useRef } from 'react';
 import {
-    BottomSheetBackdrop,
-    BottomSheetBackdropProps,
-    BottomSheetModal,
-    BottomSheetView
-} from '@gorhom/bottom-sheet';
-import React, { useCallback, useEffect, useRef } from 'react';
-import {
-    Platform,
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    View,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import StandardBottomSheet from './StandardBottomSheet';
 
 export interface ActionSheetItem {
   id: string;
@@ -26,7 +21,7 @@ export interface ActionSheetItem {
   onPress?: () => void;
   onValueChange?: (value: boolean) => void;
   iconColor?: string;
-  textColor?: string; 
+  textColor?: string;
 }
 
 interface ActionSheetModalProps {
@@ -56,128 +51,61 @@ export default function ActionSheetModal({
     }
   }, [visible]);
 
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        opacity={0.4}
-      />
-    ),
-    []
-  );
-
-  const handleDismiss = useCallback(() => {
+  const handleDismiss = () => {
     isPresenting.current = false;
     onClose();
-  }, [onClose]);
+  };
 
   return (
-    <BottomSheetModal
+    <StandardBottomSheet
       ref={bottomSheetModalRef}
-      snapPoints={['50%']}
-      onDismiss={handleDismiss}
-      backdropComponent={renderBackdrop}
-      enablePanDownToClose
+      title={title}
+      onClose={handleDismiss}
       enableDynamicSizing
-      handleIndicatorStyle={styles.indicator}
-      backgroundStyle={styles.bottomSheet}
     >
-      <BottomSheetView style={styles.contentContainer}>
-        <View style={styles.bottomSheetHeader}>
-          <View style={styles.headerLeft} />
-          <Text style={styles.bottomSheetTitle}>{title}</Text>
-          <TouchableOpacity 
-            style={styles.closeButton} 
-            onPress={() => bottomSheetModalRef.current?.dismiss()} 
-            hitSlop={10}
-          >
-            <Ionicons name="close" size={24} color={Colors.neutral.black} />
-          </TouchableOpacity>
-        </View>
+      {actions.map((action, index) => {
+        const isLast = index === actions.length - 1;
+        const isDestructive = action.variant === 'destructive';
+        const textColor = action.textColor || (isDestructive ? Colors.errorDark : Colors.neutral.black);
+        const iconColor = action.iconColor || (isDestructive ? Colors.errorDark : Colors.neutral.black);
 
-        {actions.map((action, index) => {
-          const isLast = index === actions.length - 1;
-          const isDestructive = action.variant === 'destructive';
-          const textColor = action.textColor || (isDestructive ? Colors.errorDark : Colors.neutral.black);
-          const iconColor = action.iconColor || (isDestructive ? Colors.errorDark : Colors.neutral.black);
-
-          if (action.type === 'toggle') {
-            return (
-              <View key={action.id} style={[styles.actionItem, isLast && styles.lastItem]}>
-                <Text style={[styles.actionText, { color: textColor }]}>{action.label}</Text>
-                <Switch
-                  value={action.value}
-                  onValueChange={action.onValueChange}
-                  trackColor={{ false: Colors.neutral.gray300, true: Colors.neutral.gray300 }}
-                  thumbColor={Colors.neutral.white}
-                />
-              </View>
-            );
-          }
-
+        if (action.type === 'toggle') {
           return (
-            <TouchableOpacity
-              key={action.id}
-              style={[styles.actionItem, isLast && styles.lastItem]}
-              onPress={() => {
-                if (action.onPress) {
-                  action.onPress();
-                }
-                bottomSheetModalRef.current?.dismiss();
-              }}
-            >
+            <View key={action.id} style={[styles.actionItem, isLast && styles.lastItem]}>
               <Text style={[styles.actionText, { color: textColor }]}>{action.label}</Text>
-              {action.icon && (
-                <Ionicons name={action.icon} size={24} color={iconColor} />
-              )}
-            </TouchableOpacity>
+              <Switch
+                value={action.value}
+                onValueChange={action.onValueChange}
+                trackColor={{ false: Colors.neutral.gray300, true: Colors.primary.main }}
+                thumbColor={Colors.neutral.white}
+              />
+            </View>
           );
-        })}
-      </BottomSheetView>
-    </BottomSheetModal>
+        }
+
+        return (
+          <TouchableOpacity
+            key={action.id}
+            style={[styles.actionItem, isLast && styles.lastItem]}
+            onPress={() => {
+              if (action.onPress) {
+                action.onPress();
+              }
+              bottomSheetModalRef.current?.dismiss();
+            }}
+          >
+            <Text style={[styles.actionText, { color: textColor }]}>{action.label}</Text>
+            {action.icon && (
+              <Ionicons name={action.icon} size={24} color={iconColor} />
+            )}
+          </TouchableOpacity>
+        );
+      })}
+    </StandardBottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  bottomSheet: {
-    backgroundColor: Colors.neutral.white,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-  },
-  indicator: {
-    backgroundColor: Colors.neutral.gray300,
-    width: 60,
-  },
-  contentContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-  },
-  bottomSheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-    paddingHorizontal: 10,
-    marginTop: 8,
-  },
-  bottomSheetTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.neutral.black,
-    textAlign: 'center',
-  },
-  headerLeft: {
-    width: 24,
-  },
-  closeButton: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   actionItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',

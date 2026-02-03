@@ -1,22 +1,27 @@
 import Button from '@/components/atoms/Button';
 import Input from '@/components/atoms/Input';
 import PageHeader from '@/components/molecules/PageHeader';
+import PlatformDatePicker from '@/components/molecules/PlatformDatePicker';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 import { Typography } from '@/constants/Typography';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { useUpdateService } from '@/hooks/useUpdateService';
+import { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CheckCircle } from 'lucide-react-native';
+import { Camera, CheckCircle } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -24,12 +29,18 @@ export default function EditServiceScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const updateMutation = useUpdateService();
 
-  const [itemName, setItemName] = useState((params.name as string) || '');
+  const id = params.id as string;
+  const [itemName, setItemName] = useState((params.itemName as string) || '');
+  const [repairType, setRepairType] = useState((params.repairType as string) || '');
   const [date, setDate] = useState(() => parseDate((params.date as string) || ''));
+  const [cost, setCost] = useState((params.cost as string) || '');
+  const [note, setNote] = useState((params.note as string) || '');
+  const [image, setImage] = useState<string | null>((params.image as string) || null);
+
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
 
   const handleBack = () => {
     router.back();
@@ -55,15 +66,89 @@ export default function EditServiceScreen() {
     return `${month} - ${day} - ${year}`;
   };
 
+  const handleAddPhoto = () => {
+    Alert.alert(
+      'Update Photo',
+      'Choose an option',
+      [
+        {
+          text: 'Take Photo',
+          onPress: openCamera,
+        },
+        {
+          text: 'Choose from Library',
+          onPress: openImageLibrary,
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const openCamera = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'We need camera permissions to take a photo.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      setImage(result.assets[0].uri);
+    }
+  };
+
+  const openImageLibrary = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'We need camera roll permissions to update the photo.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      setImage(result.assets[0].uri);
+    }
+  };
+
   const handleSubmit = useCallback(async () => {
-    setIsSaving(true);
-    
-    // Simulate save
-    setTimeout(() => {
-      setIsSaving(false);
+    if (!itemName || !repairType || !cost) {
+      Alert.alert('Error', 'Please fill in all required fields.');
+      return;
+    }
+
+    try {
+      await updateMutation.mutateAsync({
+        id,
+        updatedFields: {
+          itemName,
+          repairType,
+          date: formatDate(date),
+          cost,
+          note,
+          image: image || undefined,
+        },
+      });
+
       setShowSuccess(true);
-    }, 500);
-  }, [itemName, date]);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update service record.');
+    }
+  }, [id, itemName, repairType, date, cost, note, image, updateMutation]);
 
   const handleCloseSuccess = () => {
     setShowSuccess(false);
@@ -88,7 +173,7 @@ export default function EditServiceScreen() {
         >
           {/* Item Name */}
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Service Name</Text>
+            <Text style={styles.label}>Item Name</Text>
             <Input
               value={itemName}
               onChangeText={setItemName}
@@ -97,47 +182,88 @@ export default function EditServiceScreen() {
             />
           </View>
 
+          {/* Repair Type */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Repair type</Text>
+            <Input
+              value={repairType}
+              onChangeText={setRepairType}
+              placeholder="e.g., Compressor replacement"
+              autoCapitalize="sentences"
+            />
+          </View>
+
           {/* Date of Service */}
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Date of Service</Text>
-            {Platform.OS === 'web' ? (
-              <Input
-                value={`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`}
-                onChangeText={() => {}}
-                // @ts-ignore - type is supported on web for react-native-web
-                type="date"
-                placeholder="MM - DD - YYYY"
-              />
-            ) : (
-              <>
-                <TouchableOpacity
-                  style={styles.dateInput}
-                  onPress={handleOpenDatePicker}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.dateText}>
-                    {formatDate(date)}
-                  </Text>
-                </TouchableOpacity>
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={date}
-                    mode="date"
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    onChange={onDateChange}
-                  />
-                )}
-              </>
-            )}
+            <TouchableOpacity
+              style={styles.dateInput}
+              onPress={handleOpenDatePicker}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.dateText}>
+                {formatDate(date)}
+              </Text>
+            </TouchableOpacity>
+            <PlatformDatePicker
+              visible={showDatePicker}
+              date={date}
+              onChange={onDateChange}
+              onClose={() => setShowDatePicker(false)}
+            />
+          </View>
+
+          {/* Cost */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Cost</Text>
+            <Input
+              value={cost}
+              onChangeText={setCost}
+              placeholder="e.g., 15000"
+              keyboardType="numeric"
+            />
+          </View>
+
+          {/* Note */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Note (Optional)</Text>
+            <Input
+              value={note}
+              onChangeText={setNote}
+              placeholder="Add details about the service, warranty, etc."
+              multiline
+              numberOfLines={4}
+              style={styles.noteInput}
+              autoCapitalize="sentences"
+            />
+          </View>
+
+          {/* Key Updates: Photo */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Photo</Text>
+            <TouchableOpacity
+              style={styles.photoUpload}
+              onPress={handleAddPhoto}
+              activeOpacity={0.7}
+            >
+              {image ? (
+                <Image source={{ uri: image }} style={styles.previewImage} />
+              ) : (
+                <>
+                  <Camera size={32} color={Colors.neutral.gray500} />
+                  <Text style={styles.photoText}>Tap to add/change photo</Text>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
         </ScrollView>
 
         {/* Footer */}
         <View style={styles.footer}>
           <Button
-            title={isSaving ? "Saving..." : "Save"}
+            title={updateMutation.isPending ? "Saving..." : "Save Changes"}
             onPress={handleSubmit}
-            disabled={isSaving || !itemName}
+            disabled={updateMutation.isPending || !itemName || !repairType || !cost}
           />
         </View>
       </KeyboardAvoidingView>
@@ -155,7 +281,7 @@ export default function EditServiceScreen() {
             </View>
             <Text style={styles.successTitle}>Updated Successfully!</Text>
             <Text style={styles.successSubtext}>Your service record has been updated.</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.modalButton}
               onPress={handleCloseSuccess}
             >
@@ -174,7 +300,7 @@ function parseDate(str: string): Date {
     if (parts.length === 3) {
       return new Date(+parts[2], +parts[0] - 1, +parts[1]);
     }
-  } catch {}
+  } catch { }
   return new Date();
 }
 
@@ -214,6 +340,32 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     color: Colors.text.primary,
     fontWeight: Typography.fontWeight.regular,
+  },
+  noteInput: {
+    height: 120,
+    paddingTop: Spacing.md,
+    textAlignVertical: 'top',
+  },
+  photoUpload: {
+    height: 160,
+    borderRadius: Spacing.borderRadius.lg,
+    backgroundColor: Colors.neutral.gray100,
+    borderWidth: 2,
+    borderColor: Colors.neutral.gray300,
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  photoText: {
+    fontSize: Typography.fontSize.caption,
+    color: Colors.neutral.gray500,
+    fontFamily: Typography.fontFamily.regular,
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: Spacing.borderRadius.lg,
   },
   footer: {
     paddingHorizontal: Spacing.screenHorizontal,

@@ -17,6 +17,7 @@ export const Typography = {
     h1: 38,      // Large headings
     h2: 30,      // Onboarding titles
     h3: 24,      // Section titles
+    h4: 20,      // Card titles
     body: 18,    // Onboarding subtitles, button text
     bodySmall: 16, // Skip text, captions
     caption: 14,
@@ -36,6 +37,7 @@ export const Typography = {
     h1: 46,      // For 38px font
     h2: 38,      // For 30px font (onboarding titles)
     h3: 32,      // For 24px font
+    h4: 28,      // For 20px font
     body: 28,    // For 18px font (onboarding subtitles)
     bodySmall: 24, // For 16px font
     caption: 20,

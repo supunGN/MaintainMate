@@ -1,41 +1,65 @@
+import EmptyState from "@/components/atoms/EmptyState";
 import React, { useCallback, useMemo, useState } from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import { FlatList, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import PageHeader from "@/components/molecules/PageHeader";
 import ServiceHistoryCard from "@/components/molecules/ServiceHistoryCard";
 import CategoryFilterModal from "@/components/organisms/CategoryFilterModal";
 import DateFilterModal, {
-    DateFilterType,
+  DateFilterType,
 } from "@/components/organisms/DateFilterModal";
 import SearchFilterHeader from "@/components/organisms/SearchFilterHeader";
 
 import { Colors } from "@/constants/Colors";
 import { Spacing } from "@/constants/Spacing";
-import { Typography } from "@/constants/Typography";
 import { useServiceRecords } from "@/hooks/useServiceRecords";
 import { useRouter } from "expo-router";
 
-/* ---------------- FILTER TABS ---------------- */
-const INITIAL_FILTERS = [
-  { id: "all", label: "All", isActive: true },
-  { id: "category", label: "Category", isActive: false },
-  { id: "byDate", label: "by Date", isActive: false },
-];
+const CATEGORY_LABELS: Record<string, string> = {
+  home_appliances: "Home Appliances",
+  vehicles: "Vehicles",
+  entertainment: "Entertainment",
+  computing: "Computing",
+  security: "Security & Smart",
+  other: "Other",
+};
+
+const DATE_LABELS: Record<string, string> = {
+  last30: "Last 30 Days",
+  last90: "Last 90 Days",
+  thisYear: "This Year",
+};
 
 export default function HistoryScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { data: services = [] } = useServiceRecords();
-  
   const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState(INITIAL_FILTERS);
 
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
   const [dateModalVisible, setDateModalVisible] = useState(false);
   const [dateFilter, setDateFilter] = useState<DateFilterType>(null);
+
+  // Dynamic filters based on selection
+  const filters = useMemo(() => [
+    {
+      id: "category",
+      label: selectedCategories.length > 0
+        ? CATEGORY_LABELS[selectedCategories[0]]
+        : "Category",
+      isActive: selectedCategories.length > 0
+    },
+    {
+      id: "byDate",
+      label: dateFilter
+        ? DATE_LABELS[dateFilter]
+        : "by Date",
+      isActive: !!dateFilter
+    },
+  ], [selectedCategories, dateFilter]);
 
   // Parse date from service record format (MM - DD - YYYY)
   const parseDate = useCallback((dateStr: string) => {
@@ -77,23 +101,6 @@ export default function HistoryScreen() {
           case "last90":
             return itemDate >= new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
 
-          case "thisMonth":
-            return (
-              itemDate.getMonth() === new Date().getMonth() &&
-              itemDate.getFullYear() === new Date().getFullYear()
-            );
-
-          case "lastMonth":
-            const lastMonth = new Date();
-            lastMonth.setMonth(lastMonth.getMonth() - 1);
-            return (
-              itemDate.getMonth() === lastMonth.getMonth() &&
-              itemDate.getFullYear() === lastMonth.getFullYear()
-            );
-
-          case "last6Months":
-            return itemDate >= new Date(new Date().setMonth(now.getMonth() - 6));
-
           case "thisYear":
             return itemDate.getFullYear() === new Date().getFullYear();
 
@@ -117,13 +124,6 @@ export default function HistoryScreen() {
       return;
     }
 
-    setFilters((prev) =>
-      prev.map((f) => ({
-        ...f,
-        isActive: f.id === id,
-      })),
-    );
-
     if (id === "all") {
       setSelectedCategories([]);
       setDateFilter(null);
@@ -132,32 +132,22 @@ export default function HistoryScreen() {
 
   const handleCategoryApply = useCallback((categories: string[]) => {
     setSelectedCategories(categories);
-    setFilters((prev) =>
-      prev.map((f) => ({
-        ...f,
-        isActive: f.id === "category",
-      })),
-    );
   }, []);
 
   const handleDateApply = useCallback((value: DateFilterType) => {
     setDateFilter(value);
-    setFilters((prev) =>
-      prev.map((f) => ({
-        ...f,
-        isActive: f.id === "byDate",
-      })),
-    );
   }, []);
 
   const handleDateClear = useCallback(() => {
     setDateFilter(null);
-    setFilters((prev) =>
-      prev.map((f) => ({
-        ...f,
-        isActive: f.id === "all",
-      })),
-    );
+  }, []);
+
+  const handleRemoveFilter = useCallback((id: string) => {
+    if (id === "category") {
+      setSelectedCategories([]);
+    } else if (id === "byDate") {
+      setDateFilter(null);
+    }
   }, []);
 
   const handleItemPress = useCallback((item: any) => {
@@ -181,56 +171,58 @@ export default function HistoryScreen() {
         {/* Header */}
         <PageHeader title="History" />
 
-      {/* Search + Filters */}
-      <SearchFilterHeader
-        searchValue={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search for service"
-        filters={filters}
-        onFilterPress={handleFilterPress}
-      />
+        {/* Search + Filters */}
+        <SearchFilterHeader
+          searchValue={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search for service"
+          filters={filters}
+          onFilterPress={handleFilterPress}
+          onRemoveFilter={handleRemoveFilter}
+        />
 
-      {/* History List */}
-      <FlatList
-        data={filteredHistory}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.contentContainer}
-        renderItem={({ item }) => (
-          <ServiceHistoryCard
-            item={{
-              title: item.itemName,
-              category: item.category,
-              date: item.date,
-              cost: parseFloat(item.cost),
-              image: item.image,
-            }}
-            onPress={() => handleItemPress(item)}
-          />
-        )}
-        ListEmptyComponent={
-          <View style={styles.placeholder}>
-            <Text style={styles.placeholderText}>History is empty</Text>
-          </View>
-        }
-      />
+        {/* History List */}
+        <FlatList
+          data={filteredHistory}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.contentContainer}
+          renderItem={({ item }) => (
+            <ServiceHistoryCard
+              item={{
+                title: item.itemName,
+                category: item.category,
+                date: item.date,
+                cost: parseFloat(item.cost),
+                image: item.image,
+              }}
+              onPress={() => handleItemPress(item)}
+            />
+          )}
+          ListEmptyComponent={
+            <EmptyState
+              title="History is empty"
+              subtitle="Your completed maintenance records will appear here"
+            />
+          }
+        />
 
-      {/* Category Modal */}
-      <CategoryFilterModal
-        visible={categoryModalVisible}
-        initialSelected={selectedCategories}
-        onApply={handleCategoryApply}
-        onClose={handleCloseCategoryModal}
-      />
+        {/* Category Modal */}
+        <CategoryFilterModal
+          visible={categoryModalVisible}
+          initialSelected={selectedCategories}
+          onApply={handleCategoryApply}
+          onClose={handleCloseCategoryModal}
+        />
 
-      {/* Date Modal */}
-      <DateFilterModal
-        visible={dateModalVisible}
-        selected={dateFilter}
-        onApply={handleDateApply}
-        onClear={handleDateClear}
-        onClose={handleCloseDateModal}
-      />
-    </View>
+        {/* Date Modal */}
+        <DateFilterModal
+          visible={dateModalVisible}
+          selected={dateFilter}
+          onApply={handleDateApply}
+          onClear={handleDateClear}
+          onClose={handleCloseDateModal}
+        />
+      </View>
     </View>
   );
 }
@@ -254,15 +246,9 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: Spacing.screenHorizontal,
     paddingBottom: 120,
+    flexGrow: 1,
   },
-  placeholder: {
-    alignItems: "center",
-    paddingVertical: 120,
-  },
-  placeholderText: {
-    fontSize: Typography.fontSize.h2,
-    fontWeight: "bold",
-  },
+
   screenTitle: {
     fontSize: 24,
     fontWeight: 'bold',

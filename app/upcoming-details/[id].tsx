@@ -4,18 +4,19 @@ import { Spacing } from '@/constants/Spacing';
 import { Typography } from '@/constants/Typography';
 import { useServiceRecords } from '@/hooks/useServiceRecords';
 import { useUpdateService } from '@/hooks/useUpdateService';
+import { cancelServiceReminder, scheduleServiceReminder } from '@/utils/notifications';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Bell, Calendar, CheckCircle, DollarSign, FileText } from 'lucide-react-native';
+import { Calendar, CheckCircle, DollarSign, Pencil } from 'lucide-react-native';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-    Alert,
-    Image,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  Image,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -61,15 +62,15 @@ export default function UpcomingDetailsScreen() {
 
   const handleMarkComplete = useCallback(async () => {
     if (!service) return;
-    
+
     const confirmAction = () => {
       setIsCompleting(true);
       const today = new Date();
       const formattedDate = `${String(today.getMonth() + 1).padStart(2, '0')} - ${String(today.getDate()).padStart(2, '0')} - ${today.getFullYear()}`;
-      
-      updateMutation.mutateAsync({ 
-        id: service.id, 
-        updatedFields: { date: formattedDate } 
+
+      updateMutation.mutateAsync({
+        id: service.id,
+        updatedFields: { date: formattedDate }
       }).then(() => {
         setIsCompleting(false);
         router.back();
@@ -94,14 +95,70 @@ export default function UpcomingDetailsScreen() {
     }
   }, [service, updateMutation, router]);
 
-  const handleSetReminder = useCallback(() => {
-    // TODO: Implement reminder functionality
-    Alert.alert(
-      'Set Reminder',
-      'Reminder functionality will be implemented soon.',
-      [{ text: 'OK' }]
-    );
-  }, []);
+  const handleToggleReminder = useCallback(async () => {
+    if (!service) return;
+
+    try {
+      if (!service.reminderId) {
+        // Schedule Reminder
+        const identifier = await scheduleServiceReminder(
+          service.date,
+          `Maintenance Reminder: ${service.itemName}`,
+          `It's time for ${service.repairType}!`
+        );
+
+        if (identifier) {
+          await updateMutation.mutateAsync({
+            id: service.id,
+            updatedFields: { reminderId: identifier }
+          });
+          Alert.alert('Reminder Set', 'You will be notified at 9:00 AM on the day of service.');
+        } else {
+          Alert.alert('Error', 'Could not schedule reminder. The date might be in the past.');
+        }
+      } else {
+        // Cancel Reminder
+        Alert.alert(
+          'Cancel Reminder',
+          'Are you sure you want to turn off the reminder for this service?',
+          [
+            { text: 'Keep It', style: 'cancel' },
+            {
+              text: 'Turn Off',
+              style: 'destructive',
+              onPress: async () => {
+                await cancelServiceReminder(service.reminderId!);
+                await updateMutation.mutateAsync({
+                  id: service.id,
+                  updatedFields: { reminderId: null }
+                });
+                Alert.alert('Reminder Cancelled', 'Notification has been removed.');
+              }
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update reminder settings.');
+    }
+  }, [service, updateMutation]);
+
+  const handleEdit = useCallback(() => {
+    if (!service) return;
+    router.push({
+      pathname: '/edit-service/[id]',
+      params: {
+        id: service.id,
+        itemName: service.itemName,
+        repairType: service.repairType,
+        date: service.date,
+        cost: service.cost,
+        note: service.note || '',
+        image: service.image || '',
+        category: service.category,
+      },
+    });
+  }, [service, router]);
 
   if (!service) {
     return (
@@ -142,100 +199,104 @@ export default function UpcomingDetailsScreen() {
           </View>
         )}
 
-        {/* Days Left Badge */}
-        <View style={styles.badgeContainer}>
+
+
+        {/* Meta Row: Badges */}
+        <View style={styles.metaRow}>
+          {/* Days Left Badge */}
           <View style={[styles.badge, daysLeft <= 7 && styles.urgentBadge]}>
-            <Calendar size={16} color={daysLeft <= 7 ? Colors.error : Colors.primary.main} />
+            <Calendar size={14} color={daysLeft <= 7 ? Colors.error : Colors.primary.main} />
             <Text style={[styles.badgeText, daysLeft <= 7 && styles.urgentBadgeText]}>
               {daysLeft > 0 ? `In ${daysLeft} days` : daysLeft === 0 ? 'Today' : `${Math.abs(daysLeft)} days overdue`}
             </Text>
           </View>
+
+          {/* Category Badge */}
+          <View style={styles.categoryBadge}>
+            <Image
+              source={getCategoryIcon(service.category)}
+              style={styles.categoryBadgeIcon}
+              resizeMode="contain"
+            />
+            <Text style={styles.categoryBadgeText}>
+              {service.category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+            </Text>
+          </View>
         </View>
 
-        {/* Service Info Card */}
-        <View style={styles.infoCard}>
+        {/* Main Content */}
+        <View style={styles.contentSection}>
           <Text style={styles.serviceTitle}>{service.repairType}</Text>
           <Text style={styles.itemName}>{service.itemName}</Text>
 
-          {/* Details Grid */}
-          <View style={styles.detailsGrid}>
+          {/* Facebook Bio Style Note */}
+          {service.note && (
+            <Text style={styles.bioText}>
+              {service.note}
+            </Text>
+          )}
+
+          {/* Action Buttons (Compact) - Moved after Bio */}
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.completeButton]}
+              onPress={handleMarkComplete}
+              disabled={isCompleting}
+              activeOpacity={0.7}
+            >
+              <CheckCircle size={16} color={Colors.neutral.white} />
+              <Text style={styles.actionButtonText}>
+                {isCompleting ? 'Completing...' : 'Mark Complete'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                styles.editButton
+              ]}
+              onPress={handleEdit}
+              activeOpacity={0.7}
+            >
+              <Pencil size={16} color={Colors.neutral.black} />
+              <Text style={[
+                styles.actionButtonText,
+                styles.editButtonText
+              ]}>
+                Edit
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* Details Lists */}
+          <View style={styles.detailsList}>
             {/* Date */}
-            <View style={styles.detailItem}>
-              <View style={styles.detailIconContainer}>
+            <View style={styles.detailRow}>
+              <View style={styles.iconCircle}>
                 <Calendar size={20} color={Colors.primary.main} />
               </View>
-              <View style={styles.detailContent}>
+              <View style={styles.detailTextContainer}>
                 <Text style={styles.detailLabel}>Scheduled Date</Text>
                 <Text style={styles.detailValue}>{service.date}</Text>
               </View>
             </View>
 
             {/* Cost */}
-            <View style={styles.detailItem}>
-              <View style={styles.detailIconContainer}>
+            <View style={styles.detailRow}>
+              <View style={styles.iconCircle}>
                 <DollarSign size={20} color={Colors.primary.main} />
               </View>
-              <View style={styles.detailContent}>
+              <View style={styles.detailTextContainer}>
                 <Text style={styles.detailLabel}>Estimated Cost</Text>
                 <Text style={styles.detailValue}>Rs. {parseFloat(service.cost).toLocaleString()}</Text>
               </View>
             </View>
-
-            {/* Notes */}
-            {service.note && (
-              <View style={[styles.detailItem, styles.notesItem]}>
-                <View style={styles.detailIconContainer}>
-                  <FileText size={20} color={Colors.primary.main} />
-                </View>
-                <View style={styles.detailContent}>
-                  <Text style={styles.detailLabel}>Notes</Text>
-                  <Text style={styles.detailValue}>{service.note}</Text>
-                </View>
-              </View>
-            )}
           </View>
-        </View>
-
-        {/* Category Badge */}
-        <View style={styles.categoryBadge}>
-          <Image
-            source={getCategoryIcon(service.category)}
-            style={styles.categoryBadgeIcon}
-            resizeMode="contain"
-          />
-          <Text style={styles.categoryBadgeText}>
-            {service.category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-          </Text>
         </View>
       </ScrollView>
 
-      {/* Action Buttons */}
-      <View style={styles.footer}>
-        <View style={styles.buttonRow}>
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.completeButton]}
-            onPress={handleMarkComplete}
-            disabled={isCompleting}
-            activeOpacity={0.7}
-          >
-            <CheckCircle size={20} color={Colors.neutral.white} />
-            <Text style={styles.actionButtonText}>
-              {isCompleting ? 'Completing...' : 'Mark Complete'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.reminderButton]}
-            onPress={handleSetReminder}
-            activeOpacity={0.7}
-          >
-            <Bell size={20} color={Colors.primary.main} />
-            <Text style={[styles.actionButtonText, styles.reminderButtonText]}>
-              Set Reminder
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
     </View>
   );
 }
@@ -280,132 +341,163 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
   },
-  badgeContainer: {
-    marginBottom: Spacing.md,
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 12,
+    marginBottom: 20,
+    marginTop: 4,
   },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
     backgroundColor: Colors.successLight,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8, // Facebook uses slightly tighter radii often
+    gap: 6,
   },
   urgentBadge: {
     backgroundColor: Colors.errorLight,
   },
   badgeText: {
-    fontSize: 14,
-    fontWeight: Typography.fontWeight.semibold,
+    fontSize: 13,
+    fontWeight: '600',
     color: Colors.primary.main,
   },
   urgentBadgeText: {
     color: Colors.error,
   },
-  infoCard: {
-    backgroundColor: Colors.neutral.gray100,
-    borderRadius: 20,
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
-  },
-  serviceTitle: {
-    fontSize: Typography.fontSize.h3,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.text.primary,
-    marginBottom: 4,
-  },
-  itemName: {
-    fontSize: Typography.fontSize.body,
-    color: Colors.text.secondary,
-    marginBottom: Spacing.lg,
-  },
-  detailsGrid: {
-    gap: Spacing.md,
-  },
-  detailItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.sm,
-  },
-  notesItem: {
-    alignItems: 'flex-start',
-  },
-  detailIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.neutral.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  detailContent: {
-    flex: 1,
-  },
-  detailLabel: {
-    fontSize: 13,
-    color: Colors.text.secondary,
-    marginBottom: 2,
-  },
-  detailValue: {
-    fontSize: Typography.fontSize.body,
-    fontWeight: Typography.fontWeight.semibold,
-    color: Colors.text.primary,
-  },
   categoryBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
     backgroundColor: Colors.neutral.gray100,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 6,
   },
   categoryBadgeIcon: {
-    width: 24,
-    height: 24,
+    width: 16,
+    height: 16,
   },
   categoryBadgeText: {
-    fontSize: 14,
-    fontWeight: Typography.fontWeight.semibold,
-    color: Colors.text.primary,
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.text.secondary,
   },
-  footer: {
-    paddingHorizontal: Spacing.screenHorizontal,
-    paddingVertical: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.neutral.gray200,
-    backgroundColor: Colors.background.default,
+  contentSection: {
+    paddingHorizontal: 4, // Minor adjustment for alignment
+  },
+  serviceTitle: {
+    fontSize: Typography.fontSize.h2,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.neutral.black,
+    marginBottom: 4,
+    letterSpacing: -0.5,
+  },
+  itemName: {
+    fontSize: Typography.fontSize.body,
+    color: Colors.text.primary,
+    marginBottom: 16,
+    fontWeight: Typography.fontWeight.semibold,
+  },
+  bioText: {
+    fontSize: 14,
+    color: Colors.text.tertiary,
+    textAlign: 'left',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.neutral.gray200,
+    marginBottom: 24,
+  },
+  detailsList: {
+    gap: 24,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 16,
+  },
+  iconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.neutral.gray100, // Subtle background circle
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  detailTextContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingTop: 2,
+  },
+  detailLabel: {
+    fontSize: 14,
+    color: Colors.text.secondary,
+    marginBottom: 4,
+    textTransform: 'capitalize', // Cleaner label style
+    letterSpacing: 0.25,
+    fontWeight: '500',
+  },
+  detailValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text.primary,
+    lineHeight: 24,
   },
   buttonRow: {
     flexDirection: 'row',
-    gap: Spacing.sm,
+    gap: 12, // More gap
+    marginBottom: 32, // Space below buttons before divider
   },
   actionButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: Spacing.borderRadius.lg,
-    gap: 8,
+    paddingVertical: 10, // Reduced from 14
+    borderRadius: 8, // Tighter radius
+    gap: 6,
   },
   completeButton: {
     backgroundColor: Colors.primary.main,
+    elevation: 2, // Subtle shadow for pop
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  editButton: {
+    backgroundColor: Colors.neutral.gray200, // Light gray for secondary action
   },
   reminderButton: {
     backgroundColor: Colors.neutral.white,
     borderWidth: 1.5,
+    borderColor: Colors.neutral.gray200, // Softer border
+  },
+  reminderActiveButton: {
+    backgroundColor: Colors.primary.main,
+    borderWidth: 1.5,
     borderColor: Colors.primary.main,
+    opacity: 0.9,
   },
   actionButtonText: {
-    fontSize: Typography.fontSize.body,
-    fontWeight: Typography.fontWeight.semibold,
+    fontSize: 14, // Slightly smaller text
+    fontWeight: '600',
     color: Colors.neutral.white,
   },
+  editButtonText: {
+    color: Colors.neutral.black,
+  },
   reminderButtonText: {
-    color: Colors.primary.main,
+    color: Colors.text.primary, // Darker text for better contrast on white
+  },
+  reminderActiveText: {
+    color: Colors.neutral.white,
   },
 });

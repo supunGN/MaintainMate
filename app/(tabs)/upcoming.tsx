@@ -1,23 +1,25 @@
+import EmptyState from '@/components/atoms/EmptyState';
 import PageHeader from '@/components/molecules/PageHeader';
 import ActionSheetModal from '@/components/organisms/ActionSheetModal';
 import { Colors } from '@/constants/Colors';
 import { useDeleteService } from '@/hooks/useDeleteService';
 import { useServiceRecords } from '@/hooks/useServiceRecords';
 import { useUpdateService } from '@/hooks/useUpdateService';
+import { cancelServiceReminder, scheduleServiceReminder } from '@/utils/notifications';
 import { ServiceRecord } from '@/utils/storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Image,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -40,7 +42,7 @@ export default function UpcomingScreen() {
   const { data: services = [], isLoading } = useServiceRecords();
   const updateMutation = useUpdateService();
   const deleteMutation = useDeleteService();
-  
+
   // Modal states
   const [selectedService, setSelectedService] = useState<ServiceRecord | null>(null);
   const [showActions, setShowActions] = useState(false);
@@ -58,8 +60,8 @@ export default function UpcomingScreen() {
       .sort((a, b) => {
         const dateA = a.date.split(' - ').map(Number);
         const dateB = b.date.split(' - ').map(Number);
-        return new Date(dateA[2], dateA[0] - 1, dateA[1]).getTime() - 
-               new Date(dateB[2], dateB[0] - 1, dateB[1]).getTime();
+        return new Date(dateA[2], dateA[0] - 1, dateA[1]).getTime() -
+          new Date(dateB[2], dateB[0] - 1, dateB[1]).getTime();
       });
   }, [services]);
 
@@ -95,19 +97,81 @@ export default function UpcomingScreen() {
 
   const handleMarkAsComplete = useCallback(async () => {
     if (!selectedService) return;
-    
+
+    Alert.alert(
+      'Mark as Complete',
+      'Are you sure you want to mark this service as completed?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Combine',
+          style: 'default',
+          onPress: async () => {
+            try {
+              const today = new Date();
+              const formattedDate = `${String(today.getMonth() + 1).padStart(2, '0')} - ${String(today.getDate()).padStart(2, '0')} - ${today.getFullYear()}`;
+
+              await updateMutation.mutateAsync({
+                id: selectedService.id,
+                updatedFields: { date: formattedDate }
+              });
+              setShowActions(false);
+              Alert.alert('Success', 'Service marked as complete and moved to history.');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to update service.');
+            }
+          }
+        }
+      ]
+    );
+  }, [selectedService, updateMutation]);
+
+  const handleToggleReminder = useCallback(async (value: boolean) => {
+    if (!selectedService) return;
+
     try {
-      const today = new Date();
-      const formattedDate = `${String(today.getMonth() + 1).padStart(2, '0')} - ${String(today.getDate()).padStart(2, '0')} - ${today.getFullYear()}`;
-      
-      await updateMutation.mutateAsync({ 
-        id: selectedService.id, 
-        updatedFields: { date: formattedDate } 
-      });
-      setShowActions(false);
-      Alert.alert('Success', 'Service marked as complete and moved to history.');
+      if (value) {
+        // Schedule Reminder
+        const identifier = await scheduleServiceReminder(
+          selectedService.date,
+          `Maintenance Reminder: ${selectedService.itemName}`,
+          `It's time for ${selectedService.repairType}!`
+        );
+
+        if (identifier) {
+          await updateMutation.mutateAsync({
+            id: selectedService.id,
+            updatedFields: { reminderId: identifier }
+          });
+          Alert.alert('Reminder Set', 'You will be notified at 9:00 AM on the day of service.');
+
+          // Update local state to reflect change immediately in the modal
+          setSelectedService(prev => prev ? ({ ...prev, reminderId: identifier }) : null);
+        } else {
+          Alert.alert('Error', 'Could not schedule reminder. The date might be in the past.');
+        }
+      } else {
+        // Cancel Reminder
+        if (selectedService.reminderId) {
+          await cancelServiceReminder(selectedService.reminderId);
+        }
+
+        await updateMutation.mutateAsync({
+          id: selectedService.id,
+          updatedFields: { reminderId: null } // Explicitly null
+        });
+
+        // Update local state to reflect change immediately
+        setSelectedService(prev => prev ? ({ ...prev, reminderId: null }) : null);
+
+        Alert.alert('Reminder Cancelled', 'Notification has been removed.');
+      }
+
+      // Close sheet after short delay to show toggle animation
+      setTimeout(() => setShowActions(false), 300);
+
     } catch (error) {
-      Alert.alert('Error', 'Failed to update service.');
+      Alert.alert('Error', 'Failed to update reminder settings.');
     }
   }, [selectedService, updateMutation]);
 
@@ -118,8 +182,13 @@ export default function UpcomingScreen() {
       pathname: '/edit-service/[id]',
       params: {
         id: selectedService.id,
-        name: selectedService.repairType,
+        itemName: selectedService.itemName,
+        repairType: selectedService.repairType,
         date: selectedService.date,
+        cost: selectedService.cost,
+        note: selectedService.note || '',
+        image: selectedService.image || '',
+        category: selectedService.category,
       },
     });
   }, [selectedService, router]);
@@ -150,8 +219,8 @@ export default function UpcomingScreen() {
         'Are you sure you want to delete this service record?',
         [
           { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Delete', 
+          {
+            text: 'Delete',
             style: 'destructive',
             onPress: performDelete
           },
@@ -181,30 +250,33 @@ export default function UpcomingScreen() {
       >
         {upcomingServices.length > 0 ? (
           upcomingServices.map((item) => (
-            <TouchableOpacity 
-              key={item.id} 
+            <TouchableOpacity
+              key={item.id}
               style={styles.serviceCard}
               onPress={() => handleOpenDetails(item)}
               activeOpacity={0.7}
             >
               <View style={styles.cardIconContainer}>
-                <Image 
-                  source={getCategoryIcon(item.category)} 
+                <Image
+                  source={getCategoryIcon(item.category)}
                   style={styles.categoryIcon}
                   resizeMode="contain"
                 />
               </View>
-              
+
               <View style={styles.cardContent}>
                 <Text style={styles.itemName}>{item.repairType}</Text>
                 <Text style={styles.itemSubName}>{item.itemName}</Text>
                 <Text style={styles.itemDate}>
-                  {item.date.split(' - ').slice(1, 2).join('')} {new Date(Number(item.date.split(' - ')[2]), Number(item.date.split(' - ')[0]) - 1).toLocaleString('default', { month: 'short' })} • In {calculateDaysLeft(item.date)} days
+                  In {calculateDaysLeft(item.date)} days
+                  {item.reminderId && (
+                    <Text style={{ color: Colors.primary.main, fontWeight: 'bold' }}> • 🔔 Reminder Set</Text>
+                  )}
                 </Text>
               </View>
 
-              <TouchableOpacity 
-                style={styles.menuButton} 
+              <TouchableOpacity
+                style={styles.menuButton}
                 onPress={() => handleOpenActions(item)}
               >
                 <Ionicons name="ellipsis-vertical" size={20} color={Colors.neutral.black} />
@@ -212,12 +284,10 @@ export default function UpcomingScreen() {
             </TouchableOpacity>
           ))
         ) : (
-          <View style={styles.placeholder}>
-            <Text style={styles.placeholderText}>No Upcoming Events</Text>
-            <Text style={styles.placeholderSubtext}>
-              Your scheduled maintenance will appear here
-            </Text>
-          </View>
+          <EmptyState
+            title="No Upcoming Events"
+            subtitle="Your scheduled maintenance will appear here"
+          />
         )}
       </ScrollView>
 
@@ -235,10 +305,10 @@ export default function UpcomingScreen() {
           },
           {
             id: 'reminder',
-            label: 'Set Remainder',
+            label: selectedService?.reminderId ? 'Reminder Set (9:00 AM)' : 'Set Reminder (9:00 AM)',
             type: 'toggle',
-            value: true,
-            onValueChange: () => {},
+            value: !!selectedService?.reminderId,
+            onValueChange: handleToggleReminder,
           },
           {
             id: 'edit',
@@ -251,7 +321,7 @@ export default function UpcomingScreen() {
             label: 'Delete',
             icon: 'trash-outline',
             variant: 'destructive',
-    onPress: handleDelete,
+            onPress: handleDelete,
           },
         ]}
       />
@@ -281,9 +351,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    padding: 20,
     paddingBottom: 100,
+    flexGrow: 1,
   },
   centered: {
     justifyContent: 'center',
@@ -438,21 +508,5 @@ const styles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 20,
   },
-  placeholder: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 100,
-  },
-  placeholderText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.neutral.black,
-    marginBottom: 8,
-  },
-  placeholderSubtext: {
-    fontSize: 14,
-    color: Colors.text.tertiary,
-    textAlign: 'center',
-  },
+
 });

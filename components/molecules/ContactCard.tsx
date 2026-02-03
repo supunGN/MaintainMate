@@ -1,15 +1,15 @@
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 import { Typography } from '@/constants/Typography';
-import { MoreVertical, Phone } from 'lucide-react-native';
+import { MoreVertical } from 'lucide-react-native';
 import React from 'react';
 import {
-    Image,
-    ImageSourcePropType,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  ImageSourcePropType,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 export interface Contact {
@@ -27,11 +27,32 @@ interface ContactCardProps {
   onMenuPress?: () => void;
 }
 
+const getInitials = (name: string) => name.charAt(0).toUpperCase();
+
+// Generate a consistent color based on the name
+const getAvatarColor = (name: string) => {
+  const colors = [
+    Colors.primary.main,
+    '#E11D48', // heavy red
+    '#D97706', // heavy amber
+    '#059669', // heavy emerald
+    '#2563EB', // heavy blue
+    '#7C3AED', // heavy violet
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+};
+
 export default function ContactCard({
   contact,
   onPress,
   onMenuPress,
 }: ContactCardProps) {
+  const avatarColor = getAvatarColor(contact.name);
+
   return (
     <TouchableOpacity
       style={styles.container}
@@ -43,8 +64,10 @@ export default function ContactCard({
         {contact.image ? (
           <Image source={contact.image} style={styles.image} />
         ) : (
-          <View style={styles.placeholder}>
-            <Phone size={20} color={Colors.neutral.gray600} />
+          <View style={[styles.placeholder, { backgroundColor: avatarColor + '20' }]}>
+            <Text style={[styles.avatarText, { color: avatarColor }]}>
+              {getInitials(contact.name)}
+            </Text>
           </View>
         )}
       </View>
@@ -83,15 +106,18 @@ const styles = StyleSheet.create({
   image: {
     width: 48,
     height: 48,
-    borderRadius: Spacing.borderRadius.md,
+    borderRadius: 24, // Circle
   },
   placeholder: {
     width: 48,
     height: 48,
-    borderRadius: Spacing.borderRadius.md,
-    backgroundColor: Colors.neutral.gray300,
+    borderRadius: 24, // Circle
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  avatarText: {
+    fontSize: 20,
+    fontWeight: 'bold',
   },
   infoContainer: {
     flex: 1,

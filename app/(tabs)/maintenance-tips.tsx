@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
   },
 
   tabText: {
-    ...Typography.body2,
+    ...Typography.variants.small,
     color: Colors.text.secondary,
   },
 
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
   },
 
   infoText: {
-    ...Typography.body2,
+    ...Typography.variants.small,
     color: Colors.text.primary,
     lineHeight: 20,
   },
@@ -182,14 +182,13 @@ const styles = StyleSheet.create({
   },
 
   tipTitle: {
-    ...Typography.body1,
-    fontWeight: '600',
+    ...Typography.variants.bodyBold,
     color: Colors.text.primary,
     marginBottom: 2,
   },
 
   tipDescription: {
-    ...Typography.body2,
+    ...Typography.variants.small,
     color: Colors.text.secondary,
     lineHeight: 20,
   },

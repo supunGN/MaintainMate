@@ -1,19 +1,23 @@
 import PageHeader from '@/components/molecules/PageHeader';
+import EditNameBottomSheet from '@/components/organisms/EditNameBottomSheet';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 import { Typography } from '@/constants/Typography';
+import { useServiceRecords } from '@/hooks/useServiceRecords';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { Bell, ChevronRight, Database, FileText, HelpCircle, Info, LogOut, Moon, Trash2, User } from 'lucide-react-native';
+import { Bell, ChevronRight, Database, FileText, HelpCircle, Info, Trash2, User } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -36,9 +40,12 @@ interface SettingSection {
 export default function SettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const [userName, setUserName] = useState('User');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
+  const [isNameModalVisible, setNameModalVisible] = useState(false);
+
+  const { data: services = [] } = useServiceRecords();
 
   useEffect(() => {
     loadUserName();
@@ -47,8 +54,10 @@ export default function SettingsScreen() {
 
   const loadUserName = async () => {
     try {
-      const name = await AsyncStorage.getItem('userName');
-      if (name) setUserName(name);
+      const name = await AsyncStorage.getItem('@user_name');
+      if (name) {
+        setUserName(name);
+      }
     } catch (error) {
       console.error('Error loading user name:', error);
     }
@@ -57,10 +66,7 @@ export default function SettingsScreen() {
   const loadPreferences = async () => {
     try {
       const notifications = await AsyncStorage.getItem('notificationsEnabled');
-      const darkMode = await AsyncStorage.getItem('darkModeEnabled');
-      
       if (notifications !== null) setNotificationsEnabled(notifications === 'true');
-      if (darkMode !== null) setDarkModeEnabled(darkMode === 'true');
     } catch (error) {
       console.error('Error loading preferences:', error);
     }
@@ -70,77 +76,108 @@ export default function SettingsScreen() {
     router.back();
   }, [router]);
 
+  // --- Actions ---
+
   const handleEditProfile = useCallback(() => {
-    Alert.alert(
-      'Edit Profile',
-      'Profile editing will be implemented soon.',
-      [{ text: 'OK' }]
-    );
+    setNameModalVisible(true);
   }, []);
+
+  const handleSaveName = async (newName: string) => {
+    if (!newName.trim()) {
+      Alert.alert('Error', 'Name cannot be empty');
+      return;
+    }
+    try {
+      await AsyncStorage.setItem('@user_name', newName.trim());
+      setUserName(newName.trim());
+      // Logic handled in component onClose essentially, but we close here too if needed or rely on component
+      // component calls onClose after onSave.
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save name');
+    }
+  };
 
   const handleNotificationsToggle = useCallback(async (value: boolean) => {
-    setNotificationsEnabled(value);
-    try {
-      await AsyncStorage.setItem('notificationsEnabled', value.toString());
-    } catch (error) {
-      console.error('Error saving notification preference:', error);
-    }
-  }, []);
-
-  const handleDarkModeToggle = useCallback(async (value: boolean) => {
-    setDarkModeEnabled(value);
-    try {
-      await AsyncStorage.setItem('darkModeEnabled', value.toString());
-      Alert.alert(
-        'Dark Mode',
-        'Dark mode will be fully implemented in a future update.',
-        [{ text: 'OK' }]
-      );
-    } catch (error) {
-      console.error('Error saving dark mode preference:', error);
-    }
-  }, []);
-
-  const handleExportData = useCallback(() => {
+    // Confirmation Dialog
     Alert.alert(
-      'Export Data',
-      'Export your maintenance records to a CSV file.',
+      'Notifications',
+      `Are you sure you want to turn ${value ? 'ON' : 'OFF'} notifications?`,
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Export', onPress: () => {
-          Alert.alert('Success', 'Data export will be implemented soon.');
-        }}
-      ]
-    );
-  }, []);
-
-  const handleClearData = useCallback(() => {
-    Alert.alert(
-      'Clear All Data',
-      'This will permanently delete all your maintenance records. This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete All', 
-          style: 'destructive',
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => {
+            // Revert visual state if user cancels (strict React state alignment)
+            // But since Switch is controlled by state, simply NOT updating state keeps it at old value.
+          }
+        },
+        {
+          text: 'Confirm',
           onPress: async () => {
+            setNotificationsEnabled(value);
             try {
-              await AsyncStorage.removeItem('serviceRecords');
-              Alert.alert('Success', 'All data has been cleared.');
-              router.replace('/');
+              await AsyncStorage.setItem('notificationsEnabled', value.toString());
             } catch (error) {
-              Alert.alert('Error', 'Failed to clear data.');
+              console.error('Error saving notification preference:', error);
             }
           }
         }
       ]
     );
-  }, [router]);
+  }, []);
+
+  const handleExportData = useCallback(async () => {
+    try {
+      const dataStr = JSON.stringify(services, null, 2);
+      await Share.share({
+        message: dataStr,
+        title: 'MaintainMate_Backup.json',
+      });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to export data');
+    }
+  }, [services]);
+
+  const handleClearData = useCallback(() => {
+    Alert.alert(
+      'Clear All Data',
+      'This will permanently delete ALL your maintenance records, contacts, and profile info. The app will restart with personal setup. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // 1. Clear all storage
+              await AsyncStorage.clear();
+
+              // 2. Clear React Query cache to remove in-memory data
+              queryClient.clear();
+
+              Alert.alert('Success', 'Everything has been erased. Restarting...', [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    // 3. Redirect to onboarding for a fresh start
+                    router.replace('/onboarding');
+                  }
+                }
+              ]);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to clear data.');
+              console.error('Reset error:', error);
+            }
+          }
+        }
+      ]
+    );
+  }, [router, queryClient]);
 
   const handlePrivacyPolicy = useCallback(() => {
     Alert.alert(
       'Privacy Policy',
-      'MaintainMate stores all data locally on your device. No data is sent to external servers.',
+      'MaintainMate prioritizes your privacy. We do not collect, store, or share your personal data. All information, including your name and service records, is stored locally on your device. You have full control over your data.',
       [{ text: 'OK' }]
     );
   }, []);
@@ -148,7 +185,7 @@ export default function SettingsScreen() {
   const handleHelp = useCallback(() => {
     Alert.alert(
       'Help & Support',
-      'For help and support, please contact us at support@maintainmate.app',
+      'Need assistance? Have a suggestion? We\'d love to hear from you.\n\nContact us at:\nsupport@maintainmate.app',
       [{ text: 'OK' }]
     );
   }, []);
@@ -156,32 +193,10 @@ export default function SettingsScreen() {
   const handleAbout = useCallback(() => {
     Alert.alert(
       'About MaintainMate',
-      'Version 1.0.0\n\nMaintainMate helps you track and manage maintenance for all your items.\n\n© 2026 MaintainMate',
+      'MaintainMate is your personal maintenance tracking assistant.\n\nVersion 1.0.0\n\nBuilt with ❤️ for privacy and simplicity.',
       [{ text: 'OK' }]
     );
   }, []);
-
-  const handleLogout = useCallback(() => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout? You can login again anytime.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Logout', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await AsyncStorage.removeItem('onboardingComplete');
-              router.replace('/onboarding');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to logout.');
-            }
-          }
-        }
-      ]
-    );
-  }, [router]);
 
   const sections: SettingSection[] = [
     {
@@ -189,7 +204,7 @@ export default function SettingsScreen() {
       items: [
         {
           id: 'profile',
-          label: 'Edit Profile',
+          label: 'Edit Name',
           icon: User,
           type: 'navigation',
           onPress: handleEditProfile,
@@ -206,14 +221,6 @@ export default function SettingsScreen() {
           type: 'toggle',
           value: notificationsEnabled,
           onToggle: handleNotificationsToggle,
-        },
-        {
-          id: 'darkMode',
-          label: 'Dark Mode',
-          icon: Moon,
-          type: 'toggle',
-          value: darkModeEnabled,
-          onToggle: handleDarkModeToggle,
         },
       ],
     },
@@ -263,19 +270,6 @@ export default function SettingsScreen() {
         },
       ],
     },
-    {
-      title: '',
-      items: [
-        {
-          id: 'logout',
-          label: 'Logout',
-          icon: LogOut,
-          type: 'action',
-          onPress: handleLogout,
-          destructive: true,
-        },
-      ],
-    },
   ];
 
   const renderSettingItem = (item: SettingItem) => {
@@ -291,9 +285,9 @@ export default function SettingsScreen() {
       >
         <View style={styles.settingLeft}>
           <View style={[styles.iconContainer, item.destructive && styles.iconContainerDestructive]}>
-            <IconComponent 
-              size={20} 
-              color={item.destructive ? Colors.error : Colors.primary.main} 
+            <IconComponent
+              size={20}
+              color={item.destructive ? Colors.error : Colors.primary.main}
             />
           </View>
           <Text style={[styles.settingLabel, item.destructive && styles.settingLabelDestructive]}>
@@ -321,7 +315,7 @@ export default function SettingsScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <PageHeader title="Settings" showBackButton onBackPress={handleBack} />
 
-      <ScrollView 
+      <ScrollView
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
@@ -352,6 +346,14 @@ export default function SettingsScreen() {
         {/* App Version */}
         <Text style={styles.versionText}>Version 1.0.0</Text>
       </ScrollView>
+
+      {/* Edit Name Bottom Sheet */}
+      <EditNameBottomSheet
+        visible={isNameModalVisible}
+        currentName={userName}
+        onClose={() => setNameModalVisible(false)}
+        onSave={handleSaveName}
+      />
     </View>
   );
 }

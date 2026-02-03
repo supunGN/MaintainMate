@@ -3,14 +3,12 @@ import { Colors } from "@/constants/Colors";
 import { Spacing } from "@/constants/Spacing";
 import { Typography } from "@/constants/Typography";
 import {
-  BottomSheetBackdrop,
-  BottomSheetFooter,
   BottomSheetModal,
-  BottomSheetScrollView,
   BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
+import StandardBottomSheet from "./StandardBottomSheet";
 
 interface Props {
   visible: boolean;
@@ -30,70 +28,28 @@ export default function EditServiceBottomSheet({
   isSaving = false,
 }: Props) {
   const sheetRef = useRef<BottomSheetModal>(null);
-  const contentHeightRef = useRef(220); // fallback
-  const [snapPoints, setSnapPoints] = useState<(number | string)[]>([
-    220,
-    "100%",
-  ]);
-
   const [name, setName] = useState(serviceName);
   const [date, setDate] = useState(serviceDate);
+  const snapPoints = useMemo(() => ["50%", "90%"], []);
 
   useEffect(() => {
-    if (visible) sheetRef.current?.present();
-    else sheetRef.current?.dismiss();
-  }, [visible]);
-
-  const expandFull = useCallback(() => {
-    sheetRef.current?.snapToIndex(1);
-  }, []);
-
-  const renderBackdrop = useCallback(
-    (props: any) => (
-      <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} />
-    ),
-    []
-  );
-
-  const renderFooter = useCallback(
-    (props: any) => (
-      <BottomSheetFooter {...props}>
-        <View style={styles.footer}>
-          <Button title="Save" onPress={() => onSave(name, date)} loading={isSaving} />
-        </View>
-      </BottomSheetFooter>
-    ),
-    [name, date, isSaving]
-  );
+    if (visible) {
+      setName(serviceName);
+      setDate(serviceDate);
+      sheetRef.current?.present();
+    } else {
+      sheetRef.current?.dismiss();
+    }
+  }, [visible, serviceName, serviceDate]);
 
   return (
-    <BottomSheetModal
+    <StandardBottomSheet
       ref={sheetRef}
+      title="Edit Service"
       snapPoints={snapPoints}
-      index={0}
-      onDismiss={onClose}
-      backdropComponent={renderBackdrop}
-      footerComponent={renderFooter}
-      enablePanDownToClose
-      keyboardBehavior="interactive"
-      keyboardBlurBehavior="restore"
-      android_keyboardInputMode="adjustResize"
-      backgroundStyle={styles.sheet}
-      handleIndicatorStyle={styles.indicator}
+      onClose={onClose}
     >
-      <BottomSheetScrollView
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.content}
-        onLayout={(e: { nativeEvent: { layout: { height: number; }; }; }) => {
-          const h = e.nativeEvent.layout.height + 80; // header + padding
-          if (h !== contentHeightRef.current) {
-            contentHeightRef.current = h;
-            setSnapPoints([h, "100%"]);
-          }
-        }}
-      >
-        <Text style={styles.title}>Edit Service</Text>
-
+      <View style={styles.content}>
         <View style={styles.field}>
           <Text style={styles.label}>Service Name</Text>
           <BottomSheetTextInput
@@ -101,7 +57,7 @@ export default function EditServiceBottomSheet({
             value={name}
             onChangeText={setName}
             placeholder="Enter name"
-            onFocus={expandFull}
+            placeholderTextColor={Colors.text.tertiary}
           />
         </View>
 
@@ -110,36 +66,25 @@ export default function EditServiceBottomSheet({
           <BottomSheetTextInput
             style={styles.input}
             value={date}
+            onChangeText={setDate}
             placeholder="MM-DD-YYYY"
-            onFocus={expandFull}
+            placeholderTextColor={Colors.text.tertiary}
+            keyboardType="numbers-and-punctuation"
           />
         </View>
-      </BottomSheetScrollView>
-    </BottomSheetModal>
+
+        <View style={styles.footer}>
+          <Button title="Save Changes" onPress={() => onSave(name, date)} loading={isSaving} />
+        </View>
+      </View>
+    </StandardBottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: {
-    backgroundColor: Colors.neutral.white,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-  },
-  indicator: {
-    backgroundColor: Colors.neutral.gray300,
-    width: 48,
-  },
   content: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 24,
     gap: 20,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "700",
-    textAlign: "center",
-    color: Colors.neutral.black,
+    marginTop: 12,
   },
   field: {
     gap: 8,
@@ -158,11 +103,7 @@ const styles = StyleSheet.create({
     color: Colors.text.primary,
   },
   footer: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: Platform.OS === "ios" ? 24 : 16,
-    borderTopWidth: 1,
-    borderTopColor: Colors.neutral.gray200,
-    backgroundColor: Colors.neutral.white,
+    marginTop: 16,
+    paddingBottom: Platform.OS === "ios" ? 0 : 16,
   },
 });

@@ -2,20 +2,20 @@ import { Colors } from "@/constants/Colors";
 import { Spacing } from "@/constants/Spacing";
 import { Typography } from "@/constants/Typography";
 import {
-    BottomSheetBackdrop,
-    BottomSheetBackdropProps,
-    BottomSheetModal,
-    BottomSheetScrollView,
+  BottomSheetBackdrop,
+  BottomSheetBackdropProps,
+  BottomSheetModal,
+  BottomSheetScrollView,
 } from "@gorhom/bottom-sheet";
 import { X } from "lucide-react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    Image,
-    ImageSourcePropType,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  ImageSourcePropType,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 interface Category {
@@ -78,13 +78,15 @@ export default function CategoryFilterModal({
   // Sync visible prop with imperative API
   useEffect(() => {
     if (visible && !isPresenting.current) {
+      // Sync state before presenting
+      setSelectedCategories(initialSelected);
       bottomSheetModalRef.current?.present();
       isPresenting.current = true;
     } else if (!visible && isPresenting.current) {
       bottomSheetModalRef.current?.dismiss();
       isPresenting.current = false;
     }
-  }, [visible]);
+  }, [visible, initialSelected]);
 
   // Update selected categories when initialSelected changes
   useEffect(() => {
@@ -110,10 +112,8 @@ export default function CategoryFilterModal({
   }, [onClose, initialSelected]);
 
   const handleCategoryToggle = (categoryId: string) => {
-    // Single selection: if already selected, deselect; otherwise select only this one
-    setSelectedCategories((prev) =>
-      prev.includes(categoryId) ? [] : [categoryId]
-    );
+    // Single selection: select only this one (don't deselect if already selected)
+    setSelectedCategories([categoryId]);
   };
 
   const handleClear = () => {

@@ -2,26 +2,23 @@ import { Colors } from "@/constants/Colors";
 import { Spacing } from "@/constants/Spacing";
 import { Typography } from "@/constants/Typography";
 import {
-    BottomSheetBackdrop,
-    BottomSheetBackdropProps,
-    BottomSheetModal,
-    BottomSheetScrollView,
+  BottomSheetBackdrop,
+  BottomSheetBackdropProps,
+  BottomSheetModal,
+  BottomSheetScrollView,
 } from "@gorhom/bottom-sheet";
-import { X } from "lucide-react-native";
+import { Calendar, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export type DateFilterType =
   | "last30"
   | "last90"
-  | "thisMonth"
-  | "lastMonth"
-  | "last6Months"
   | "thisYear"
   | null;
 
@@ -34,11 +31,8 @@ interface Props {
 }
 
 const OPTIONS = [
-  { id: "last30", label: "Last 30 days" },
-  { id: "last90", label: "Last 90 days" },
-  { id: "thisMonth", label: "This Month" },
-  { id: "lastMonth", label: "Last Month" },
-  { id: "last6Months", label: "Last 6 Months" },
+  { id: "last30", label: "Last 30 Days" },
+  { id: "last90", label: "Last 90 Days" },
   { id: "thisYear", label: "This Year" },
 ];
 
@@ -56,13 +50,15 @@ export default function DateFilterModal({
   // Sync visible prop with imperative API
   useEffect(() => {
     if (visible && !isPresenting.current) {
+      // Sync state before presenting
+      setValue(selected);
       bottomSheetModalRef.current?.present();
       isPresenting.current = true;
     } else if (!visible && isPresenting.current) {
       bottomSheetModalRef.current?.dismiss();
       isPresenting.current = false;
     }
-  }, [visible]);
+  }, [visible, selected]);
 
   // Update value when selected changes
   useEffect(() => {
@@ -97,10 +93,15 @@ export default function DateFilterModal({
     bottomSheetModalRef.current?.dismiss();
   };
 
+  const handleToggle = (id: DateFilterType) => {
+    // Select this one (don't deselect if already selected)
+    if (id) setValue(id);
+  };
+
   return (
     <BottomSheetModal
       ref={bottomSheetModalRef}
-      snapPoints={['60%']}
+      snapPoints={['50%']}
       onDismiss={handleDismiss}
       backdropComponent={renderBackdrop}
       enablePanDownToClose
@@ -120,34 +121,39 @@ export default function DateFilterModal({
           </TouchableOpacity>
         </View>
 
-        {/* Options */}
+        {/* Options Grid */}
         <View style={styles.optionsContainer}>
-          {OPTIONS.map((option) => (
-            <TouchableOpacity
-              key={option.id}
-              style={[
-                styles.option,
-                value === option.id && styles.optionSelected,
-              ]}
-              onPress={() => setValue(option.id as DateFilterType)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.optionText,
-                  value === option.id && styles.optionTextSelected,
-                ]}
-              >
-                {option.label}
-              </Text>
-              <View
-                style={[
-                  styles.radio,
-                  value === option.id && styles.radioActive,
-                ]}
-              />
-            </TouchableOpacity>
-          ))}
+          <View style={styles.grid}>
+            {OPTIONS.map((option) => {
+              const isSelected = value === option.id;
+              return (
+                <View key={option.id} style={styles.listItem}>
+                  <TouchableOpacity
+                    style={[
+                      styles.optionCard,
+                      isSelected && styles.optionCardSelected,
+                    ]}
+                    onPress={() => handleToggle(option.id as DateFilterType)}
+                    activeOpacity={0.7}
+                  >
+                    <Calendar
+                      size={20}
+                      color={isSelected ? Colors.primary.main : Colors.neutral.gray500}
+                      style={styles.icon}
+                    />
+                    <Text
+                      style={[
+                        styles.optionLabel,
+                        isSelected && styles.optionLabelSelected,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </View>
         </View>
 
         {/* Footer */}
@@ -208,40 +214,39 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.md,
   },
-  option: {
+  grid: {
+    flexDirection: "column",
+  },
+  listItem: {
+    width: "100%",
+    marginBottom: Spacing.md,
+  },
+  optionCard: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: Colors.neutral.gray100,
+    backgroundColor: Colors.neutral.white,
     borderWidth: 1,
     borderColor: Colors.neutral.gray300,
     borderRadius: Spacing.borderRadius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    height: 52,
   },
-  optionSelected: {
+  optionCardSelected: {
     backgroundColor: Colors.primary.main + "10",
     borderColor: Colors.primary.main,
   },
-  optionText: {
-    fontSize: Typography.fontSize.body,
+  icon: {
+    marginRight: Spacing.sm,
+  },
+  optionLabel: {
+    flex: 1,
+    fontSize: 13,
     fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.medium,
+    fontWeight: "600",
     color: Colors.text.primary,
   },
-  optionTextSelected: {
+  optionLabelSelected: {
     color: Colors.primary.main,
-  },
-  radio: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: Colors.neutral.gray300,
-  },
-  radioActive: {
-    backgroundColor: Colors.primary.main,
-    borderColor: Colors.primary.main,
   },
   footer: {
     flexDirection: "row",

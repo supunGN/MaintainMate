@@ -73,6 +73,8 @@ export const Colors = {
     primary: '#2F8B57',
     secondary: '#66BB6A',
     tertiary: '#A5D6A7',
+    quaternary: '#C8E6C9',
+    quinary: '#E8F5E9',
   },
 
   // Onboarding Colors
