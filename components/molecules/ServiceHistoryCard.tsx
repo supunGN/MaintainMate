@@ -1,7 +1,6 @@
 import Text from "@/components/atoms/Text";
 import { Colors } from "@/constants/Colors";
 import { Spacing } from "@/constants/Spacing";
-import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { Image, StyleSheet, TouchableOpacity, View } from "react-native";
 
@@ -11,14 +10,14 @@ interface Props {
     category: string;
     date: string;
     cost: number;
-    image?: string; // optional image URI
+    image?: string;
   };
-  onPressMore: () => void;
+  onPress: () => void;
 }
 
-export default function ServiceHistoryCard({ item, onPressMore }: Props) {
+export default function ServiceHistoryCard({ item, onPress }: Props) {
   return (
-    <View style={styles.card}>
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
       {/* Main row: image left, details right */}
       <View style={styles.rowMain}>
         {/* Image */}
@@ -38,14 +37,6 @@ export default function ServiceHistoryCard({ item, onPressMore }: Props) {
               <Text style={styles.title}>{item.title}</Text>
               <Text style={styles.category}>{item.category}</Text>
             </View>
-
-            <TouchableOpacity onPress={onPressMore} style={styles.moreButton}>
-              <Feather
-                name="more-vertical"
-                size={24}
-                color={Colors.text.primary}
-              />
-            </TouchableOpacity>
           </View>
 
           <View style={styles.footerRow}>
@@ -54,17 +45,17 @@ export default function ServiceHistoryCard({ item, onPressMore }: Props) {
           </View>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#F2F2F2", // light grey card
+    backgroundColor: Colors.neutral.gray100,
     padding: Spacing.md,
     borderRadius: 16,
     marginBottom: Spacing.md,
-    flexDirection: "row", // make card a row container
+    flexDirection: "row",
     alignItems: "center",
   },
 

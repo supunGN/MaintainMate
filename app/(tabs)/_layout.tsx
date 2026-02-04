@@ -2,7 +2,7 @@ import { HapticTab } from '@/components/haptic-tab';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 import { Tabs, useRouter } from 'expo-router';
-import { BarChart3, Bell, Home, List, Plus } from 'lucide-react-native';
+import { BarChart3, Bell, Home, Lightbulb, List, Plus } from 'lucide-react-native';
 import React from 'react';
 
 export default function TabLayout() {
@@ -34,7 +34,7 @@ export default function TabLayout() {
         },
       }}>
       <Tabs.Screen
-        name="index"
+        name="home"
         options={{
           title: 'Home',
           tabBarIcon: ({ color }) => <Home size={24} color={color} />,
@@ -72,6 +72,18 @@ export default function TabLayout() {
         options={{
           title: 'Reports',
           tabBarIcon: ({ color }) => <BarChart3 size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="maintenance-tips"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="index"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

@@ -1,12 +1,17 @@
 import { Colors } from "@/constants/Colors";
 import { Spacing } from "@/constants/Spacing";
 import { Typography } from "@/constants/Typography";
-import { X } from "lucide-react-native";
-import React, { useEffect, useState } from "react";
 import {
-  Modal,
-  Text as RNText,
+  BottomSheetBackdrop,
+  BottomSheetBackdropProps,
+  BottomSheetModal,
+  BottomSheetScrollView,
+} from "@gorhom/bottom-sheet";
+import { Calendar, X } from "lucide-react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
   StyleSheet,
+  Text,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -14,9 +19,6 @@ import {
 export type DateFilterType =
   | "last30"
   | "last90"
-  | "thisMonth"
-  | "lastMonth"
-  | "last6Months"
   | "thisYear"
   | null;
 
@@ -29,11 +31,8 @@ interface Props {
 }
 
 const OPTIONS = [
-  { id: "last30", label: "Last 30 days" },
-  { id: "last90", label: "Last 90 days" },
-  { id: "thisMonth", label: "This Month" },
-  { id: "lastMonth", label: "Last Month" },
-  { id: "last6Months", label: "Last 6 Months" },
+  { id: "last30", label: "Last 30 Days" },
+  { id: "last90", label: "Last 90 Days" },
   { id: "thisYear", label: "This Year" },
 ];
 
@@ -44,113 +43,151 @@ export default function DateFilterModal({
   onClear,
   onClose,
 }: Props) {
+  const bottomSheetModalRef = useRef<BottomSheetModal>(null);
+  const isPresenting = useRef(false);
   const [value, setValue] = useState<DateFilterType>(selected);
 
+  // Sync visible prop with imperative API
+  useEffect(() => {
+    if (visible && !isPresenting.current) {
+      // Sync state before presenting
+      setValue(selected);
+      bottomSheetModalRef.current?.present();
+      isPresenting.current = true;
+    } else if (!visible && isPresenting.current) {
+      bottomSheetModalRef.current?.dismiss();
+      isPresenting.current = false;
+    }
+  }, [visible, selected]);
+
+  // Update value when selected changes
   useEffect(() => {
     setValue(selected);
   }, [selected]);
 
-  const handleClose = () => {
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        opacity={0.5}
+      />
+    ),
+    []
+  );
+
+  const handleDismiss = useCallback(() => {
+    isPresenting.current = false;
     setValue(selected);
     onClose();
-  };
+  }, [onClose, selected]);
 
   const handleApply = () => {
     onApply(value);
-    onClose();
+    bottomSheetModalRef.current?.dismiss();
+  };
+
+  const handleClear = () => {
+    onClear();
+    bottomSheetModalRef.current?.dismiss();
+  };
+
+  const handleToggle = (id: DateFilterType) => {
+    // Select this one (don't deselect if already selected)
+    if (id) setValue(id);
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.overlay}>
-        {/* Backdrop */}
-        <TouchableOpacity
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={handleClose}
-        />
+    <BottomSheetModal
+      ref={bottomSheetModalRef}
+      snapPoints={['50%']}
+      onDismiss={handleDismiss}
+      backdropComponent={renderBackdrop}
+      enablePanDownToClose
+      handleIndicatorStyle={styles.indicator}
+      backgroundStyle={styles.background}
+    >
+      <BottomSheetScrollView contentContainerStyle={styles.contentContainer}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>by Date</Text>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => bottomSheetModalRef.current?.dismiss()}
+            activeOpacity={0.7}
+          >
+            <X size={24} color={Colors.text.primary} />
+          </TouchableOpacity>
+        </View>
 
-        {/* Modal Content */}
-        <View style={styles.modalContainer}>
-          {/* Header */}
-          <View style={styles.header}>
-            <RNText style={styles.title}>by Date</RNText>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={handleClose}
-              activeOpacity={0.7}
-            >
-              <X size={24} color={Colors.text.primary} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Options */}
-          <View style={styles.optionsContainer}>
-            {OPTIONS.map((option) => (
-              <TouchableOpacity
-                key={option.id}
-                style={[
-                  styles.option,
-                  value === option.id && styles.optionSelected,
-                ]}
-                onPress={() => setValue(option.id as DateFilterType)}
-                activeOpacity={0.7}
-              >
-                <RNText
-                  style={[
-                    styles.optionText,
-                    value === option.id && styles.optionTextSelected,
-                  ]}
-                >
-                  {option.label}
-                </RNText>
-                <View
-                  style={[
-                    styles.radio,
-                    value === option.id && styles.radioActive,
-                  ]}
-                />
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Footer */}
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={styles.clearButton}
-              onPress={onClear}
-              activeOpacity={0.7}
-            >
-              <RNText style={styles.clearButtonText}>Clear</RNText>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.applyButton}
-              onPress={handleApply}
-              activeOpacity={0.7}
-            >
-              <RNText style={styles.applyButtonText}>Apply</RNText>
-            </TouchableOpacity>
+        {/* Options Grid */}
+        <View style={styles.optionsContainer}>
+          <View style={styles.grid}>
+            {OPTIONS.map((option) => {
+              const isSelected = value === option.id;
+              return (
+                <View key={option.id} style={styles.listItem}>
+                  <TouchableOpacity
+                    style={[
+                      styles.optionCard,
+                      isSelected && styles.optionCardSelected,
+                    ]}
+                    onPress={() => handleToggle(option.id as DateFilterType)}
+                    activeOpacity={0.7}
+                  >
+                    <Calendar
+                      size={20}
+                      color={isSelected ? Colors.primary.main : Colors.neutral.gray500}
+                      style={styles.icon}
+                    />
+                    <Text
+                      style={[
+                        styles.optionLabel,
+                        isSelected && styles.optionLabelSelected,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
           </View>
         </View>
-      </View>
-    </Modal>
+
+        {/* Footer */}
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={styles.clearButton}
+            onPress={handleClear}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.clearButtonText}>Clear</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.applyButton}
+            onPress={handleApply}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.applyButtonText}>Apply</Text>
+          </TouchableOpacity>
+        </View>
+      </BottomSheetScrollView>
+    </BottomSheetModal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    justifyContent: "flex-end",
+  indicator: {
+    backgroundColor: Colors.neutral.gray300,
+    width: 40,
   },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  modalContainer: {
+  background: {
     backgroundColor: Colors.background.default,
-    borderTopLeftRadius: Spacing.borderRadius.xl,
-    borderTopRightRadius: Spacing.borderRadius.xl,
+  },
+  contentContainer: {
     paddingBottom: Spacing.xl,
   },
   header: {
@@ -158,7 +195,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: Spacing.screenHorizontal,
-    paddingTop: Spacing.lg,
+    paddingTop: Spacing.md,
     paddingBottom: Spacing.md,
   },
   title: {
@@ -177,40 +214,39 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.md,
   },
-  option: {
+  grid: {
+    flexDirection: "column",
+  },
+  listItem: {
+    width: "100%",
+    marginBottom: Spacing.md,
+  },
+  optionCard: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: Colors.neutral.gray100,
+    backgroundColor: Colors.neutral.white,
     borderWidth: 1,
     borderColor: Colors.neutral.gray300,
     borderRadius: Spacing.borderRadius.lg,
-    padding: Spacing.md,
-    marginBottom: 0,
+    paddingHorizontal: Spacing.lg,
+    height: 52,
   },
-  optionSelected: {
+  optionCardSelected: {
     backgroundColor: Colors.primary.main + "10",
     borderColor: Colors.primary.main,
   },
-  optionText: {
-    fontSize: Typography.fontSize.body,
+  icon: {
+    marginRight: Spacing.sm,
+  },
+  optionLabel: {
+    flex: 1,
+    fontSize: 13,
     fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.medium,
+    fontWeight: "600",
     color: Colors.text.primary,
   },
-  optionTextSelected: {
+  optionLabelSelected: {
     color: Colors.primary.main,
-  },
-  radio: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: Colors.neutral.gray300,
-  },
-  radioActive: {
-    backgroundColor: Colors.primary.main,
-    borderColor: Colors.primary.main,
   },
   footer: {
     flexDirection: "row",

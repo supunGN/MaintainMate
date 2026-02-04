@@ -5,8 +5,7 @@ import PlatformDatePicker from '@/components/molecules/PlatformDatePicker';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 import { Typography } from '@/constants/Typography';
-import { useAddService } from '@/hooks/useAddService';
-import { registerForPushNotificationsAsync, scheduleServiceReminder } from '@/utils/notifications';
+import { useUpdateService } from '@/hooks/useUpdateService';
 import { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -26,25 +25,50 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export default function AddServiceFormScreen() {
+export default function EditServiceScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const category = params.category as string;
   const insets = useSafeAreaInsets();
-  const addServiceMutation = useAddService();
+  const updateMutation = useUpdateService();
 
-  const [itemName, setItemName] = useState('');
-  const [repairType, setRepairType] = useState('');
-  const [date, setDate] = useState(new Date());
+  const id = params.id as string;
+  const [itemName, setItemName] = useState((params.itemName as string) || '');
+  const [repairType, setRepairType] = useState((params.repairType as string) || '');
+  const [date, setDate] = useState(() => parseDate((params.date as string) || ''));
+  const [cost, setCost] = useState((params.cost as string) || '');
+  const [note, setNote] = useState((params.note as string) || '');
+  const [image, setImage] = useState<string | null>((params.image as string) || null);
+
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [cost, setCost] = useState('');
-  const [note, setNote] = useState('');
-  const [image, setImage] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+
+  const handleBack = () => {
+    router.back();
+  };
+
+  const onDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (selectedDate) {
+      setDate(selectedDate);
+    }
+  };
+
+  const handleOpenDatePicker = useCallback(() => {
+    setShowDatePicker(true);
+  }, []);
+
+  const formatDate = (date: Date) => {
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${month} - ${day} - ${year}`;
+  };
 
   const handleAddPhoto = () => {
     Alert.alert(
-      'Add Photo',
+      'Update Photo',
       'Choose an option',
       [
         {
@@ -85,7 +109,7 @@ export default function AddServiceFormScreen() {
   const openImageLibrary = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'We need camera roll permissions to upload a photo.');
+      Alert.alert('Permission Denied', 'We need camera roll permissions to update the photo.');
       return;
     }
 
@@ -101,36 +125,6 @@ export default function AddServiceFormScreen() {
     }
   };
 
-  const onDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
-    // Android closes automatically on selection/cancel
-    if (Platform.OS === 'android') {
-      setShowDatePicker(false);
-    }
-
-    // Update date if selected
-    if (selectedDate) {
-      setDate(selectedDate);
-    }
-  };
-
-  const handleWebDateChange = (text: string) => {
-    // text is YYYY-MM-DD from native HTML5 date input
-    if (text) {
-      const parts = text.split('-');
-      if (parts.length === 3) {
-        const newDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        setDate(newDate);
-      }
-    }
-  };
-
-  const formatDate = (date: Date) => {
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const year = date.getFullYear();
-    return `${month} - ${day} - ${year}`;
-  };
-
   const handleSubmit = useCallback(async () => {
     if (!itemName || !repairType || !cost) {
       Alert.alert('Error', 'Please fill in all required fields.');
@@ -138,63 +132,38 @@ export default function AddServiceFormScreen() {
     }
 
     try {
-      // 1. Schedule Reminder by Default
-      let reminderId: string | undefined;
-      const hasPermission = await registerForPushNotificationsAsync();
-
-      if (hasPermission) {
-        reminderId = await scheduleServiceReminder(
-          formatDate(date),
-          `Maintenance Reminder: ${itemName}`,
-          `It's time for ${repairType}!`
-        ) || undefined;
-      }
-
-      // 2. Save Service with reminderId
-      await addServiceMutation.mutateAsync({
-        category,
-        itemName,
-        repairType,
-        date: formatDate(date),
-        cost,
-        note,
-        image: image || undefined,
-        reminderId,
+      await updateMutation.mutateAsync({
+        id,
+        updatedFields: {
+          itemName,
+          repairType,
+          date: formatDate(date),
+          cost,
+          note,
+          image: image || undefined,
+        },
       });
 
       setShowSuccess(true);
-
-      // Auto-redirect after 2 seconds
-      setTimeout(() => {
-        setShowSuccess(false);
-        router.push('/(tabs)');
-      }, 2000);
     } catch (error) {
-      Alert.alert('Error', 'Failed to save service record. Please try again.');
+      Alert.alert('Error', 'Failed to update service record.');
     }
-  }, [itemName, repairType, cost, category, date, note, image, addServiceMutation, router]);
+  }, [id, itemName, repairType, date, cost, note, image, updateMutation]);
 
-  const handleBack = useCallback(() => {
-    router.back();
-  }, [router]);
-
-  const handleOpenDatePicker = useCallback(() => {
-    setShowDatePicker(true);
-  }, []);
-
-  const handleCloseSuccess = useCallback(() => {
+  const handleCloseSuccess = () => {
     setShowSuccess(false);
-    router.push('/(tabs)');
-  }, [router]);
+    router.back();
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         {/* Header */}
-        <PageHeader title="Add Service" showBackButton onBackPress={handleBack} />
+        <PageHeader title="Edit Service" showBackButton onBackPress={handleBack} />
 
         {/* Form Content */}
         <ScrollView
@@ -204,7 +173,7 @@ export default function AddServiceFormScreen() {
         >
           {/* Item Name */}
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Add Item Name</Text>
+            <Text style={styles.label}>Item Name</Text>
             <Input
               value={itemName}
               onChangeText={setItemName}
@@ -219,7 +188,7 @@ export default function AddServiceFormScreen() {
             <Input
               value={repairType}
               onChangeText={setRepairType}
-              placeholder="e.g., Compressor replacement, Annual servicing"
+              placeholder="e.g., Compressor replacement"
               autoCapitalize="sentences"
             />
           </View>
@@ -261,7 +230,7 @@ export default function AddServiceFormScreen() {
             <Input
               value={note}
               onChangeText={setNote}
-              placeholder="e.g., Warranty valid until Dec 2025, technician contact: +1234567890"
+              placeholder="Add details about the service, warranty, etc."
               multiline
               numberOfLines={4}
               style={styles.noteInput}
@@ -269,9 +238,9 @@ export default function AddServiceFormScreen() {
             />
           </View>
 
-          {/* Add Photo */}
+          {/* Key Updates: Photo */}
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Add Photo</Text>
+            <Text style={styles.label}>Photo</Text>
             <TouchableOpacity
               style={styles.photoUpload}
               onPress={handleAddPhoto}
@@ -282,7 +251,7 @@ export default function AddServiceFormScreen() {
               ) : (
                 <>
                   <Camera size={32} color={Colors.neutral.gray500} />
-                  <Text style={styles.photoText}>Tap to add receipt or service photo</Text>
+                  <Text style={styles.photoText}>Tap to add/change photo</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -292,9 +261,9 @@ export default function AddServiceFormScreen() {
         {/* Footer */}
         <View style={styles.footer}>
           <Button
-            title={addServiceMutation.isPending ? "Saving..." : "Add"}
+            title={updateMutation.isPending ? "Saving..." : "Save Changes"}
             onPress={handleSubmit}
-            disabled={addServiceMutation.isPending || !itemName || !repairType || !cost}
+            disabled={updateMutation.isPending || !itemName || !repairType || !cost}
           />
         </View>
       </KeyboardAvoidingView>
@@ -310,8 +279,8 @@ export default function AddServiceFormScreen() {
             <View style={styles.successIconContainer}>
               <CheckCircle size={40} color={Colors.primary.main} />
             </View>
-            <Text style={styles.successTitle}>Added Successfully!</Text>
-            <Text style={styles.successSubtext}>Your service record has been saved.</Text>
+            <Text style={styles.successTitle}>Updated Successfully!</Text>
+            <Text style={styles.successSubtext}>Your service record has been updated.</Text>
             <TouchableOpacity
               style={styles.modalButton}
               onPress={handleCloseSuccess}
@@ -323,6 +292,16 @@ export default function AddServiceFormScreen() {
       </Modal>
     </View>
   );
+}
+
+function parseDate(str: string): Date {
+  try {
+    const parts = str.split(' - ');
+    if (parts.length === 3) {
+      return new Date(+parts[2], +parts[0] - 1, +parts[1]);
+    }
+  } catch { }
+  return new Date();
 }
 
 const styles = StyleSheet.create({
@@ -361,9 +340,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     color: Colors.text.primary,
     fontWeight: Typography.fontWeight.regular,
-  },
-  placeholderText: {
-    color: Colors.neutral.gray500,
   },
   noteInput: {
     height: 120,

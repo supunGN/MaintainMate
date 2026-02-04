@@ -1,352 +1,496 @@
-import React, { useState } from "react";
+import EmptyState from "@/components/atoms/EmptyState";
+import PageHeader from "@/components/molecules/PageHeader";
+import CategoryFilterModal from "@/components/organisms/CategoryFilterModal";
+import DateFilterModal, { DateFilterType } from "@/components/organisms/DateFilterModal";
+import SearchFilterHeader from "@/components/organisms/SearchFilterHeader";
+import { Colors } from "@/constants/Colors";
+import { Spacing } from "@/constants/Spacing";
+import { Typography } from "@/constants/Typography";
+import { useServiceRecords } from "@/hooks/useServiceRecords";
+import React, { useCallback, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
   ScrollView,
-  Pressable,
-  Modal,
-  Platform,
+  StyleSheet,
+  Text,
+  View
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { PieChart, BarChart } from "react-native-gifted-charts";
+import { BarChart, PieChart } from "react-native-gifted-charts";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const CATEGORY_LABELS: Record<string, string> = {
+  home_appliances: "Home Appliances",
+  vehicles: "Vehicles",
+  entertainment: "Entertainment",
+  computing: "Computing",
+  security: "Security & Smart",
+  other: "Other",
+};
+
+const DATE_LABELS: Record<string, string> = {
+  last30: "Last 30 Days",
+  last90: "Last 90 Days",
+  thisYear: "This Year",
+};
 
 export default function ReportsScreen() {
-  const [monthOpen, setMonthOpen] = useState(false);
-  const [itemOpen, setItemOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const insets = useSafeAreaInsets();
+  const { data: services = [] } = useServiceRecords();
 
-  const [selectedMonth, setSelectedMonth] = useState("April 2024");
-  const [selectedItem] = useState("All Items");
+  const [search, setSearch] = useState("");
 
-  const generateMonthYears = () => {
-    const months = [
-      "January", "February", "March", "April", "May", "June",
-      "July", "August", "September", "October", "November", "December",
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [dateModalVisible, setDateModalVisible] = useState(false);
+  const [dateFilter, setDateFilter] = useState<DateFilterType>(null);
+
+  // Dynamic filters based on selection
+  const filters = useMemo(() => [
+    {
+      id: "category",
+      label: selectedCategories.length > 0
+        ? CATEGORY_LABELS[selectedCategories[0]]
+        : "Category",
+      isActive: selectedCategories.length > 0
+    },
+    {
+      id: "byDate",
+      label: dateFilter
+        ? DATE_LABELS[dateFilter]
+        : "by Date",
+      isActive: !!dateFilter
+    },
+  ], [selectedCategories, dateFilter]);
+
+  // Parse date from service record format (MM - DD - YYYY)
+  const parseDate = useCallback((dateStr: string) => {
+    const [month, day, year] = dateStr.split(' - ').map(Number);
+    return new Date(year, month - 1, day);
+  }, []);
+
+  // Filter services based on search, category, and date
+  const filteredServices = useMemo(() => {
+    let filtered = services;
+
+    // Search filter
+    if (search) {
+      filtered = filtered.filter(
+        (item) =>
+          item.itemName.toLowerCase().includes(search.toLowerCase()) ||
+          item.repairType.toLowerCase().includes(search.toLowerCase())
+      );
+    }
+
+    // Category filter
+    if (selectedCategories.length > 0) {
+      filtered = filtered.filter((item) =>
+        selectedCategories.includes(item.category)
+      );
+    }
+
+    // Date filter
+    if (dateFilter) {
+      const now = new Date();
+      filtered = filtered.filter((item) => {
+        const itemDate = parseDate(item.date);
+
+        switch (dateFilter) {
+          case "last30":
+            return itemDate >= new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          case "last90":
+            return itemDate >= new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          case "thisYear":
+            return itemDate.getFullYear() === now.getFullYear();
+          default:
+            return true;
+        }
+      });
+    }
+
+    return filtered;
+  }, [services, search, selectedCategories, dateFilter, parseDate]);
+
+  // Calculate total cost
+  const totalCost = useMemo(() => {
+    return filteredServices.reduce((sum, item) => sum + parseFloat(item.cost), 0);
+  }, [filteredServices]);
+
+  // Group by category for pie chart
+  const categoryData = useMemo(() => {
+    const grouped = filteredServices.reduce((acc, item) => {
+      const category = item.category;
+      if (!acc[category]) {
+        acc[category] = { total: 0, count: 0 };
+      }
+      acc[category].total += parseFloat(item.cost);
+      acc[category].count += 1;
+      return acc;
+    }, {} as Record<string, { total: number; count: number }>);
+
+    const colors = [
+      Colors.chart.primary,
+      Colors.chart.secondary,
+      Colors.chart.tertiary,
+      Colors.chart.quaternary,
+      Colors.chart.quinary,
     ];
-    const years = [2023, 2024, 2025];
-    return years.flatMap(year => months.map(month => `${month} ${year}`));
-  };
 
-  const monthYearList = generateMonthYears();
+    return Object.entries(grouped)
+      .map(([category, data], index) => ({
+        value: data.total,
+        label: category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+        color: colors[index % colors.length],
+        count: data.count,
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [filteredServices]);
 
-  // Pie chart data
-  const pieChartDataRaw = [
-    { value: 7200, label: "Toyota Corolla", color: "#2F7D5A", extra: "31,391" },
-    { value: 4300, label: "Yamaha FZ", color: "#66BB6A", extra: "19,391" },
-    { value: 2000, label: "Washing Machine", color: "#A5D6A7", extra: "12,291" },
-  ];
+  // Pie chart data with percentages
+  const pieChartData = useMemo(() => {
+    if (totalCost === 0) return [];
+    return categoryData.map(item => ({
+      ...item,
+      text: `${((item.value / totalCost) * 100).toFixed(1)}%`,
+    }));
+  }, [categoryData, totalCost]);
 
-  const total = pieChartDataRaw.reduce((sum, item) => sum + item.value, 0);
+  // Group by month for bar chart
+  const monthlyData = useMemo(() => {
+    const grouped = filteredServices.reduce((acc, item) => {
+      const date = parseDate(item.date);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (!acc[monthKey]) {
+        acc[monthKey] = 0;
+      }
+      acc[monthKey] += parseFloat(item.cost);
+      return acc;
+    }, {} as Record<string, number>);
 
-  // Add percentage text on slices
-  const pieChartData = pieChartDataRaw.map(item => ({
-    ...item,
-    text: `${((item.value / total) * 100).toFixed(1)}%`,
-  }));
+    const sortedMonths = Object.keys(grouped).sort();
+    const last5Months = sortedMonths.slice(-5);
 
-  // Bar chart data
-  const barData = [
-    { value: 4000, label: "Jan", frontColor: "#E0E0E0" },
-    { value: 5200, label: "Feb", frontColor: "#E0E0E0" },
-    { value: 5800, label: "Mar", frontColor: "#E0E0E0" },
-    { value: 13500, label: "Apr", frontColor: "#2F7D5A" },
-    { value: 3000, label: "May", frontColor: "#E0E0E0" },
-  ];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    return last5Months.map((monthKey, index) => {
+      const [year, month] = monthKey.split('-');
+      const monthIndex = parseInt(month) - 1;
+      const isCurrentMonth = index === last5Months.length - 1;
+
+      return {
+        value: grouped[monthKey],
+        label: monthNames[monthIndex],
+        frontColor: isCurrentMonth ? Colors.primary.main : Colors.neutral.gray300,
+      };
+    });
+  }, [filteredServices, parseDate]);
+
+  // Expense breakdown list
+  const expenseBreakdown = useMemo(() => {
+    return filteredServices.map(item => ({
+      id: item.id,
+      itemName: item.itemName,
+      category: item.category,
+      date: item.date,
+      cost: parseFloat(item.cost),
+    })).sort((a, b) => b.cost - a.cost);
+  }, [filteredServices]);
+
+  const handleFilterPress = useCallback((filterId: string) => {
+    if (filterId === "category") {
+      setCategoryModalVisible(true);
+    } else if (filterId === "byDate") {
+      setDateModalVisible(true);
+    }
+  }, []);
+
+  const handleRemoveFilter = useCallback((id: string) => {
+    if (id === "category") {
+      setSelectedCategories([]);
+    } else if (id === "byDate") {
+      setDateFilter(null);
+    }
+  }, []);
+
+  const handleCategoryApply = useCallback((categories: string[]) => {
+    setSelectedCategories(categories);
+    setCategoryModalVisible(false);
+  }, []);
+
+  const handleDateApply = useCallback((filter: DateFilterType) => {
+    setDateFilter(filter);
+    setDateModalVisible(false);
+  }, []);
+
+  const handleDateClear = useCallback(() => {
+    setDateFilter(null);
+    setDateModalVisible(false);
+  }, []);
+
+  const handleCloseCategoryModal = useCallback(() => {
+    setCategoryModalVisible(false);
+  }, []);
+
+  const handleCloseDateModal = useCallback(() => {
+    setDateModalVisible(false);
+  }, []);
+
+  const maxBarValue = useMemo(() => {
+    if (monthlyData.length === 0) return 15000;
+    const max = Math.max(...monthlyData.map(d => d.value));
+    return Math.ceil(max / 5000) * 5000;
+  }, [monthlyData]);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.innerContainer}>
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Expense Reports</Text>
-          <Pressable onPress={() => setSearchOpen(true)} hitSlop={10}>
-            <Ionicons name="search" size={24} color="#333" />
-          </Pressable>
-        </View>
+        <PageHeader title="Expense Reports" />
 
-        {/* Filters */}
-        <View style={styles.filters}>
-          <Pressable style={styles.filter} onPress={() => setMonthOpen(true)}>
-            <Text style={styles.filterText}>{selectedMonth} ⌄</Text>
-          </Pressable>
-          <Pressable style={styles.filter} onPress={() => setItemOpen(true)}>
-            <Text style={styles.filterText}>{selectedItem} ⌄</Text>
-          </Pressable>
-        </View>
+        {/* Search + Filters */}
+        <SearchFilterHeader
+          searchValue={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search expenses"
+          filters={filters}
+          onFilterPress={handleFilterPress}
+          onRemoveFilter={handleRemoveFilter}
+        />
 
-        {/* Total Maintenance Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Total Maintenance Cost</Text>
-          <Text style={styles.amount}>Rs. {total.toLocaleString()}</Text>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Total Maintenance Card */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Total Maintenance Cost</Text>
+            <Text style={styles.amount}>Rs. {totalCost.toLocaleString()}</Text>
 
-          <View style={styles.pieContainer}>
-            <PieChart
-              data={pieChartData}
-              donut
-              radius={70}
-              innerRadius={42}
-              showText
-              textColor="#fff"
-              textSize={12}
-              textBackgroundRadius={14}
-            />
-            <View style={styles.legend}>
-              {pieChartDataRaw.map((item, index) => (
-                <View key={index} style={styles.legendItem}>
-                  <Text style={styles.legendTitle}>
-                    {item.label} ₹{item.value.toLocaleString()}
-                  </Text>
-                  <Text style={styles.legendValue}>
-                    Rs. {((item.value / total) * 100).toFixed(1)}% {item.extra}
-                  </Text>
+            {pieChartData.length > 0 ? (
+              <View style={styles.pieContainer}>
+                <PieChart
+                  data={pieChartData}
+                  donut
+                  radius={70}
+                  innerRadius={42}
+                  showText
+                  textColor={Colors.neutral.white}
+                  textSize={12}
+                  textBackgroundRadius={14}
+                />
+                <View style={styles.legend}>
+                  {categoryData.map((item, index) => (
+                    <View key={index} style={styles.legendItem}>
+                      <View style={styles.legendRow}>
+                        <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                        <Text style={styles.legendTitle}>{item.label}</Text>
+                      </View>
+                      <Text style={styles.legendValue}>
+                        Rs. {item.value.toLocaleString()} ({item.count} items)
+                      </Text>
+                    </View>
+                  ))}
                 </View>
-              ))}
+              </View>
+            ) : (
+              <EmptyState
+                title="No data available"
+                subtitle="Add maintenance records to see your expense reports"
+              />
+            )}
+          </View>
+
+          {/* Monthly Expenses */}
+          {monthlyData.length > 0 && (
+            <View style={styles.card}>
+              <View style={styles.expenseHeader}>
+                <Text style={styles.cardTitle}>Monthly Expenses</Text>
+                <Text style={styles.totalValue}>Rs. {totalCost.toLocaleString()}</Text>
+              </View>
+
+              <View style={styles.barChartWrapper}>
+                <View style={styles.yAxisLabels}>
+                  <Text style={styles.yLabel}>{maxBarValue.toLocaleString()}</Text>
+                  <Text style={styles.yLabel}>{(maxBarValue * 0.67).toFixed(0)}</Text>
+                  <Text style={styles.yLabel}>{(maxBarValue * 0.33).toFixed(0)}</Text>
+                  <Text style={styles.yLabel}>0</Text>
+                </View>
+
+                <BarChart
+                  data={monthlyData}
+                  barWidth={34}
+                  spacing={20}
+                  roundedTop
+                  hideRules
+                  hideYAxisText
+                  yAxisThickness={0}
+                  xAxisThickness={0}
+                  noOfSections={3}
+                  maxValue={maxBarValue}
+                  isAnimated
+                />
+              </View>
             </View>
-          </View>
-        </View>
+          )}
 
-        {/* Monthly Expenses */}
-        <View style={styles.card}>
-          <View style={styles.expenseHeader}>
-            <Text style={styles.cardTitle}>Monthly Maintenance Expenses</Text>
-            <Text style={styles.totalValue}>Rs. {total.toLocaleString()}</Text>
+          {/* Expense Breakdown */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Expense Breakdown</Text>
+            {expenseBreakdown.length > 0 ? (
+              <View style={styles.breakdownList}>
+                {expenseBreakdown.map((item) => (
+                  <View key={item.id} style={styles.breakdownItem}>
+                    <View style={styles.breakdownLeft}>
+                      <Text style={styles.breakdownItemName}>{item.itemName}</Text>
+                      <Text style={styles.breakdownDate}>{item.date}</Text>
+                    </View>
+                    <Text style={styles.breakdownCost}>Rs. {item.cost.toLocaleString()}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <EmptyState
+                title="No expenses found"
+                subtitle="Your maintenance costs will be listed here"
+              />
+            )}
           </View>
+        </ScrollView>
+      </View>
 
-          <View style={styles.barChartWrapper}>
-            <View style={styles.yAxisLabels}>
-              <Text style={styles.yLabel}>15,000</Text>
-              <Text style={styles.yLabel}>10,000</Text>
-              <Text style={styles.yLabel}>5,000</Text>
-              <Text style={styles.yLabel}>0</Text>
-            </View>
+      {/* Category Filter Modal */}
+      <CategoryFilterModal
+        visible={categoryModalVisible}
+        initialSelected={selectedCategories}
+        onApply={handleCategoryApply}
+        onClose={handleCloseCategoryModal}
+      />
 
-            <BarChart
-              data={barData}
-              barWidth={34}
-              spacing={20}
-              roundedTop
-              hideRules
-              hideYAxisText
-              yAxisThickness={0}
-              xAxisThickness={0}
-              noOfSections={3}
-              maxValue={15000}
-              isAnimated
-            />
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Month Dropdown */}
-      <Modal transparent visible={monthOpen} animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setMonthOpen(false)}>
-          <View style={[styles.dropdown, { marginTop: 140 }]}>
-            <ScrollView style={{ maxHeight: 340 }}>
-              {monthYearList.map((monthYear) => (
-                <Pressable
-                  key={monthYear}
-                  style={styles.dropdownItem}
-                  onPress={() => {
-                    setSelectedMonth(monthYear);
-                    setMonthOpen(false);
-                  }}
-                >
-                  <Text style={monthYear === selectedMonth ? styles.activeDropdownText : null}>
-                    {monthYear}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        </Pressable>
-      </Modal>
-
-      {/* Item Dropdown */}
-      <Modal transparent visible={itemOpen} animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setItemOpen(false)}>
-          <View style={[styles.dropdown, { marginTop: 140 }]}>
-            {["All Items", "Vehicle", "Appliances", "Others"].map((item) => (
-              <Pressable
-                key={item}
-                style={styles.dropdownItem}
-                onPress={() => setItemOpen(false)}
-              >
-                <Text>{item}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </Pressable>
-      </Modal>
-
-      {/* Search Modal */}
-      <Modal transparent visible={searchOpen} animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setSearchOpen(false)}>
-          <View style={styles.searchModal}>
-            <Ionicons name="search" size={20} color="#999" style={{ marginRight: 8 }} />
-            <Text style={styles.searchPlaceholder}>Search expenses...</Text>
-          </View>
-        </Pressable>
-      </Modal>
-    </SafeAreaView>
+      {/* Date Filter Modal */}
+      <DateFilterModal
+        visible={dateModalVisible}
+        selected={dateFilter}
+        onApply={handleDateApply}
+        onClear={handleDateClear}
+        onClose={handleCloseDateModal}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F7F9FC",
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === "android" ? 16 : 12,
+    backgroundColor: Colors.background.default,
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-    marginTop: 16,
-    paddingTop: 8,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#111",
-  },
-  filters: {
-    flexDirection: "row",
-    marginBottom: 20,
-    gap: 12,
-  },
-  filter: {
+  innerContainer: {
     flex: 1,
-    backgroundColor: "#fff",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#eee",
-    alignItems: "center",
-    justifyContent: "center",
   },
-  filterText: {
-    fontSize: 14,
-    fontWeight: "500",
+  scrollContent: {
+    paddingHorizontal: Spacing.screenHorizontal,
+    paddingBottom: Spacing.xl,
+    paddingTop: Spacing.md,
   },
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    backgroundColor: Colors.neutral.gray100,
+    borderRadius: Spacing.borderRadius.xl,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   cardTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 6,
+    fontSize: Typography.fontSize.h4,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.text.primary,
+    marginBottom: Spacing.sm,
   },
   amount: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: "#111",
-    marginBottom: 20,
+    fontSize: 32,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.primary.main,
+    marginBottom: Spacing.lg,
   },
   pieContainer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: Spacing.lg,
   },
   legend: {
     flex: 1,
-    flexShrink: 1,
-    marginLeft: 16,
+    gap: Spacing.sm,
   },
   legendItem: {
-    marginBottom: 8,
+    gap: 4,
+  },
+  legendRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   legendTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#222",
+    fontSize: Typography.fontSize.caption,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.text.primary,
   },
   legendValue: {
-    fontSize: 13,
-    color: "#666",
+    fontSize: Typography.fontSize.caption,
+    color: Colors.text.secondary,
+    marginLeft: 16,
   },
   expenseHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
   totalValue: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#2F7D5A",
+    fontSize: Typography.fontSize.body,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.primary.main,
   },
   barChartWrapper: {
     flexDirection: "row",
-    height: 200,
-    alignItems: "flex-end",
+    alignItems: "center",
   },
   yAxisLabels: {
-    width: 60,
-    height: 180,
     justifyContent: "space-between",
-    alignItems: "flex-end",
-    paddingRight: 12,
+    height: 180,
+    marginRight: Spacing.sm,
   },
   yLabel: {
-    fontSize: 12,
-    color: "#888",
+    fontSize: 10,
+    color: Colors.text.secondary,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
+  breakdownList: {
+    gap: Spacing.sm,
   },
-  dropdown: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    marginHorizontal: 24,
-    overflow: "hidden",
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-  },
-  dropdownItem: {
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#eee",
-  },
-  activeDropdownText: {
-    color: "#2F7D5A",
-    fontWeight: "600",
-  },
-  searchModal: {
-    backgroundColor: "white",
-    borderRadius: 20,
-    marginHorizontal: 24,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+  breakdownItem: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.gray200,
   },
-  searchPlaceholder: {
-    fontSize: 14,
-    color: "#999",
+  breakdownLeft: {
     flex: 1,
   },
+  breakdownItemName: {
+    fontSize: Typography.fontSize.body,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.text.primary,
+    marginBottom: 2,
+  },
+  breakdownDate: {
+    fontSize: Typography.fontSize.caption,
+    color: Colors.text.secondary,
+  },
+  breakdownCost: {
+    fontSize: Typography.fontSize.body,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.text.primary,
+  },
+
 });

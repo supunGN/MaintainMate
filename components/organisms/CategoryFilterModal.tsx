@@ -1,12 +1,17 @@
 import { Colors } from "@/constants/Colors";
 import { Spacing } from "@/constants/Spacing";
 import { Typography } from "@/constants/Typography";
+import {
+  BottomSheetBackdrop,
+  BottomSheetBackdropProps,
+  BottomSheetModal,
+  BottomSheetScrollView,
+} from "@gorhom/bottom-sheet";
 import { X } from "lucide-react-native";
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Image,
   ImageSourcePropType,
-  Modal,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -65,14 +70,50 @@ export default function CategoryFilterModal({
   onApply,
   initialSelected = [],
 }: CategoryFilterModalProps) {
+  const bottomSheetModalRef = useRef<BottomSheetModal>(null);
+  const isPresenting = useRef(false);
   const [selectedCategories, setSelectedCategories] =
     useState<string[]>(initialSelected);
 
+  // Sync visible prop with imperative API
+  useEffect(() => {
+    if (visible && !isPresenting.current) {
+      // Sync state before presenting
+      setSelectedCategories(initialSelected);
+      bottomSheetModalRef.current?.present();
+      isPresenting.current = true;
+    } else if (!visible && isPresenting.current) {
+      bottomSheetModalRef.current?.dismiss();
+      isPresenting.current = false;
+    }
+  }, [visible, initialSelected]);
+
+  // Update selected categories when initialSelected changes
+  useEffect(() => {
+    setSelectedCategories(initialSelected);
+  }, [initialSelected]);
+
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        opacity={0.5}
+      />
+    ),
+    []
+  );
+
+  const handleDismiss = useCallback(() => {
+    isPresenting.current = false;
+    setSelectedCategories(initialSelected);
+    onClose();
+  }, [onClose, initialSelected]);
+
   const handleCategoryToggle = (categoryId: string) => {
-    // Single selection: if already selected, deselect; otherwise select only this one
-    setSelectedCategories((prev) =>
-      prev.includes(categoryId) ? [] : [categoryId],
-    );
+    // Single selection: select only this one (don't deselect if already selected)
+    setSelectedCategories([categoryId]);
   };
 
   const handleClear = () => {
@@ -81,123 +122,106 @@ export default function CategoryFilterModal({
 
   const handleApply = () => {
     onApply(selectedCategories);
-    onClose();
-  };
-
-  const handleClose = () => {
-    setSelectedCategories(initialSelected);
-    onClose();
+    bottomSheetModalRef.current?.dismiss();
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={handleClose}
+    <BottomSheetModal
+      ref={bottomSheetModalRef}
+      snapPoints={['65%']}
+      onDismiss={handleDismiss}
+      backdropComponent={renderBackdrop}
+      enablePanDownToClose
+      handleIndicatorStyle={styles.indicator}
+      backgroundStyle={styles.background}
     >
-      <View style={styles.overlay}>
-        {/* Backdrop */}
-        <TouchableOpacity
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={handleClose}
-        />
+      <BottomSheetScrollView contentContainerStyle={styles.contentContainer}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Category</Text>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => bottomSheetModalRef.current?.dismiss()}
+            activeOpacity={0.7}
+          >
+            <X size={24} color={Colors.text.primary} />
+          </TouchableOpacity>
+        </View>
 
-        {/* Modal Content */}
-        <View style={styles.modalContainer}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Category</Text>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={handleClose}
-              activeOpacity={0.7}
-            >
-              <X size={24} color={Colors.text.primary} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Categories Grid */}
-          <View style={styles.categoriesContainer}>
-            <View style={styles.grid}>
-              {CATEGORIES.map((category) => {
-                const isSelected = selectedCategories.includes(category.id);
-                return (
-                  <View key={category.id} style={styles.categoryItem}>
-                    <TouchableOpacity
+        {/* Categories Grid */}
+        <View style={styles.categoriesContainer}>
+          <View style={styles.grid}>
+            {CATEGORIES.map((category) => {
+              const isSelected = selectedCategories.includes(category.id);
+              return (
+                <View key={category.id} style={styles.categoryItem}>
+                  <TouchableOpacity
+                    style={[
+                      styles.categoryItemInner,
+                      isSelected && styles.categoryItemSelected,
+                    ]}
+                    onPress={() => handleCategoryToggle(category.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Image
+                      source={category.image}
+                      style={styles.categoryIcon}
+                      resizeMode="contain"
+                    />
+                    <Text
                       style={[
-                        styles.categoryItemInner,
-                        isSelected && styles.categoryItemSelected,
+                        styles.categoryLabel,
+                        isSelected && styles.categoryLabelSelected,
                       ]}
-                      onPress={() => handleCategoryToggle(category.id)}
-                      activeOpacity={0.7}
                     >
-                      <Image
-                        source={category.image}
-                        style={styles.categoryIcon}
-                        resizeMode="contain"
-                      />
-                      <Text
-                        style={[
-                          styles.categoryLabel,
-                          isSelected && styles.categoryLabelSelected,
-                        ]}
-                      >
-                        {category.label}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Footer Buttons */}
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={styles.clearButton}
-              onPress={handleClear}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.clearButtonText}>Clear</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.applyButton}
-              onPress={handleApply}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.applyButtonText}>Apply</Text>
-            </TouchableOpacity>
+                      {category.label}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
           </View>
         </View>
-      </View>
-    </Modal>
+
+        {/* Footer Buttons */}
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={styles.clearButton}
+            onPress={handleClear}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.clearButtonText}>Clear</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.applyButton}
+            onPress={handleApply}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.applyButtonText}>Apply</Text>
+          </TouchableOpacity>
+        </View>
+      </BottomSheetScrollView>
+    </BottomSheetModal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    justifyContent: "flex-end",
+  indicator: {
+    backgroundColor: Colors.neutral.gray300,
+    width: 40,
   },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  modalContainer: {
+  background: {
     backgroundColor: Colors.background.default,
-    borderTopLeftRadius: Spacing.borderRadius.xl,
-    borderTopRightRadius: Spacing.borderRadius.xl,
+  },
+  contentContainer: {
     paddingBottom: Spacing.xl,
-    maxHeight: "70%",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: Spacing.screenHorizontal,
-    paddingTop: Spacing.lg,
+    paddingTop: Spacing.md,
     paddingBottom: Spacing.md,
   },
   title: {
@@ -219,7 +243,7 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginHorizontal: -Spacing.xs, // Negative margin to offset item margins
+    marginHorizontal: -Spacing.xs,
   },
   categoryItem: {
     width: "50%",

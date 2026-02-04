@@ -15,18 +15,19 @@ export default function OnboardingSlide({
   subtitle,
 }: OnboardingSlideProps) {
   const { width } = useWindowDimensions();
-  
+
   return (
     <View style={[styles.container, { width }]}>
-      {/* Illustration */}
       <View style={styles.illustrationContainer}>
-        <Image source={illustration} style={[styles.illustration, {
-          width: Math.min(300, width * 0.75),
-          height: Math.min(300, width * 0.75),
-        }]} resizeMode="contain" />
+        <Image
+          source={illustration}
+          style={{
+            width: Math.min(300, width * 0.75),
+            height: Math.min(300, width * 0.75),
+          }}
+          resizeMode="contain"
+        />
       </View>
-
-      {/* Title and Subtitle */}
       <OnboardingContent title={title} subtitle={subtitle} />
     </View>
   );
@@ -43,8 +44,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: Spacing.screenHorizontal,
     marginBottom: Spacing.screenVertical,
-  },
-  illustration: {
-    // Dynamic sizing in inline style
   },
 });
